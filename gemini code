@@ -191,6 +191,7 @@
             <input type="text" id="node-input" placeholder="Enter your central idea...">
             <button id="summarize-btn" class="ai-button">✨ Summarize</button>
             <button id="elaborate-btn" class="ai-button">✨ Elaborate</button>
+            <button id="export-pdf-btn" class="ai-button" style="display: inline-block;">📄 Export PDF</button>
         </div>
     </div>
 
@@ -201,9 +202,14 @@
         const nodeInput = document.getElementById('node-input');
         const summarizeBtn = document.getElementById('summarize-btn');
         const elaborateBtn = document.getElementById('elaborate-btn');
+        const exportPdfBtn = document.getElementById('export-pdf-btn'); // Get reference to the new button
         const loadingIndicator = document.getElementById('loading-indicator');
         const container = document.getElementById('mindmap-container');
+        const constraintOffset = 250; // Max distance central node can be dragged from its initial center (e.g., 250px radius)
         
+        // IMPORTANT: Replace with your actual Gemini API Key
+        const GEMINI_API_KEY = "YOUR_API_KEY_HERE";
+
         let nodes = [];
         let links = [];
         let nextId = 0;
@@ -232,12 +238,20 @@
         const simulation = d3.forceSimulation(nodes)
             .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.targetDistance).strength(0.4))
             .force("charge", d3.forceManyBody().strength(-350))
-            .force("center", d3.forceCenter(container.clientWidth / 2, container.clientHeight / 2).strength(0.05))
-            .force("collide", d3.forceCollide().radius(d => d.radius + 15).strength(1));
+            .force("center", d3.forceCenter(container.clientWidth / 2, container.clientHeight / 2).strength(0.05)) // Attracts all nodes to the center
+            .force("collide", d3.forceCollide().radius(d => d.radius + 15).strength(1))
+            .force("radial", d3.forceRadial() // Adds a gentle outward push from the center
+                .x(container.clientWidth / 2)
+                .y(container.clientHeight / 2)
+                .strength(0.01) // Small positive strength for a gentle outward push. Tune as needed.
+                // No specific radius needed if we want a general outward push from the center.
+                // Nodes further away will be pushed more strongly if radius is not set, which can be a desired effect.
+            );
 
         const masterGroup = svg.append("g");
         let linkGroup = masterGroup.append("g");
         let nodeGroup = masterGroup.append("g");
+        let ghostNodeGroup = masterGroup.append("g").attr("class", "ghost-node-layer"); // Layer for ghost nodes
         
         const zoom = d3.zoom().scaleExtent([0.1, 2]).on("zoom", (event) => masterGroup.attr("transform", event.transform));
         svg.call(zoom);
@@ -272,8 +286,12 @@
                 const text = el.select("text");
                 const nodeColor = colorScale(d.depth);
                 
-                const fontSize = Math.max(10, 18 - d.depth * 1.5);
-                text.style("font-size", `${fontSize}px`).style("fill", "#FFFFFF");
+                // Adjusted font size calculation as per requirement
+                const fontSize = Math.max(9, 18 - d.depth * 2);
+
+                // Automatic Text Color Switching
+                const finalTextColor = getTextColor(nodeColor); // Use helper function
+                text.style("font-size", `${fontSize}px`).style("fill", finalTextColor);
                 
                 const bbox = text.node().getComputedTextLength();
                 d.radius = bbox / 2 + 15;
@@ -341,7 +359,20 @@
             if (!name.trim()) return null;
             let newNode;
             if (nodes.length === 0) {
-                newNode = {id: nextId++, name, depth: 0, children:[], x: container.clientWidth / 2, y: container.clientHeight / 2, fx: container.clientWidth / 2, fy: container.clientHeight / 2 };
+                const initialCenterX = container.clientWidth / 2;
+                const initialCenterY = container.clientHeight / 2;
+                newNode = {
+                    id: nextId++,
+                    name,
+                    depth: 0,
+                    children:[],
+                    x: initialCenterX,
+                    y: initialCenterY,
+                    fx: initialCenterX, // Pin the first node to the center
+                    fy: initialCenterY,
+                    initialX: initialCenterX, // Store initial X for constrained dragging reference
+                    initialY: initialCenterY  // Store initial Y for constrained dragging reference
+                };
                 nodes.push(newNode);
             } else {
                 if(!parent) return null;
@@ -352,7 +383,9 @@
                 const coneWidth = (160 * Math.PI) / 180;
                 const coneStart = parentAngle - coneWidth / 2;
                 const siblingAngles = (parent.children || []).map(child => Math.atan2(child.y - parent.y, child.x - parent.y)).sort((a,b) => a - b);
-                let bestAngle = parentAngle; 
+                // Default to the middle of the cone. This will be used if no siblings exist,
+                // or if no siblings are found within the angular cone.
+                let bestAngle = coneStart + coneWidth / 2;
 
                 if (siblingAngles.length > 0) {
                     let maxGap = 0;
@@ -366,10 +399,9 @@
                     }).filter(a => a <= coneWidth + 0.001) // allow for small floating point errors
                     .sort((a,b)=>a-b);
 
-                    // If no siblings are in the cone, place it in the middle
-                    if (normalizedSiblings.length === 0) {
-                        bestAngle = parentAngle;
-                    } else {
+                    // If there are siblings within the cone, calculate the best angle based on gaps.
+                    // Otherwise, bestAngle remains the middle of the cone (set above).
+                    if (normalizedSiblings.length > 0) {
                         // Check gap from start of cone to first sibling
                         maxGap = normalizedSiblings[0];
                         angleAtMaxGap = coneStart + maxGap / 2;
@@ -414,7 +446,79 @@
         }
 
         function removeNode(nodeToRemove) {
-            // ... same as before ...
+            if (!nodeToRemove) return;
+
+            // 1. Recursively find all descendant nodes of nodeToRemove
+            const descendants = [];
+            const findDescendants = (node) => {
+                if (!node.children) return;
+                node.children.forEach(childId => { // Assuming children are stored as IDs or direct references
+                    // If children are stored as full objects directly:
+                    // const childNode = child;
+                    // If children are IDs that need to be looked up in the main 'nodes' array:
+                    const childNode = nodes.find(n => n.id === childId.id); // or childId directly if it's just the ID
+                    if (childNode) {
+                        descendants.push(childNode);
+                        findDescendants(childNode);
+                    }
+                });
+            };
+
+            // Correction: The `children` property in `addNode` stores full node objects, not IDs.
+            // So, the recursive function should operate on these directly.
+            const findDescendantsRecursive = (node) => {
+                (node.children || []).forEach(childNode => {
+                    descendants.push(childNode);
+                    findDescendantsRecursive(childNode);
+                });
+            };
+            findDescendantsRecursive(nodeToRemove);
+
+            // 2. Create a list of all nodes to be deleted
+            const nodesToDelete = [nodeToRemove, ...descendants];
+            const nodesToDeleteIds = new Set(nodesToDelete.map(n => n.id));
+
+            // 3. Filter the main `nodes` array
+            nodes = nodes.filter(n => !nodesToDeleteIds.has(n.id));
+
+            // 4. Filter the main `links` array
+            links = links.filter(l => !nodesToDeleteIds.has(l.source.id) && !nodesToDeleteIds.has(l.target.id));
+
+            // 5. If selectedNode is among the nodes being deleted, set selectedNode = null
+            if (selectedNode && nodesToDeleteIds.has(selectedNode.id)) {
+                selectedNode = null;
+                // Also hide AI buttons and reset input placeholder if the selected node was deleted
+                summarizeBtn.style.display = 'none';
+                elaborateBtn.style.display = 'none';
+                if (nodes.length > 0) {
+                     nodeInput.placeholder = "Select a node or start a new idea...";
+                } else {
+                     nodeInput.placeholder = "Enter your central idea...";
+                }
+            }
+
+            // Remove deleted nodes from parent's children array
+            if (nodes.length > 0 && nodeToRemove) {
+                const parentLink = links.find(l => l.target.id === nodeToRemove.id); // This link is already removed from `links` array.
+                                                                                // We need to find parent from original structure if possible or check all nodes.
+                 nodes.forEach(potentialParent => {
+                    if (potentialParent.children) {
+                        potentialParent.children = potentialParent.children.filter(child => child.id !== nodeToRemove.id);
+                    }
+                });
+            }
+
+
+            // 6. Update the simulation
+            simulation.nodes(nodes);
+            simulation.force("link").links(links);
+            // simulation.alpha(0.3).restart(); // Gently restart simulation
+
+            // 7. Call updateGraph() to refresh the visualization
+            updateGraph();
+
+            // Optional: Clear any suggestions related to the deleted node
+            suggestionPanel.innerHTML = '<div id="initial-help-text" class="text-center text-gray-500">Node removed. Select a node or start a new idea.</div>';
         }
 
 
@@ -435,72 +539,993 @@
             const text = nodeInput.value.trim();
             if (!text) return;
             let newNode;
+
             if (nodes.length === 0) {
+                // Case 1: No nodes yet. Create the first node.
                 newNode = addNode(text);
-                if (newNode) handleNodeClick(null, newNode);
             } else if (selectedNode) {
+                // Case 2: A node is selected.
                 if (isPrimedForChild) {
-                    if (!event.shiftKey) {
-                        newNode = addNode(text, selectedNode);
-                    }
+                    // Subcase 2a: Node is primed for a child. Enter or Shift+Enter creates a child.
+                    // This simplifies the logic: if primed, any Enter key action results in a child.
+                    newNode = addNode(text, selectedNode);
                 } else {
+                    // Subcase 2b: Node is not primed (standard state).
                     if (event.shiftKey) {
+                        // Shift+Enter creates a child.
                         newNode = addNode(text, selectedNode); 
                     } else {
+                        // Enter creates a sibling.
                         const parentLink = links.find(l => l.target.id === selectedNode.id);
+                        // If selectedNode is the root, parentLink will be undefined.
+                        // addNode(text, null) would then correctly create another root-level node if that's desired,
+                        // or handle it as an error/do nothing if parent must exist (current addNode returns null if parent is null and nodes.length > 0).
                         newNode = addNode(text, parentLink ? parentLink.source : null);
                     }
                 }
             }
+            // else: No node selected, and not the first node. Do nothing. User must select a node.
+
+            // Common logic after attempting to create a node:
             if (newNode) {
-                handleNodeClick(null, newNode);
+                // If a node was successfully created:
+                handleNodeClick(null, newNode); // Select and prime the new node. This also sets its placeholder.
+
+                // Explicitly set isPrimedForChild to false here.
+                // handleNodeClick sets it to true, but the interaction model requires:
+                // - Primed + Enter -> Child, then isPrimedForChild = false.
+                // - Standard + Enter -> Sibling, isPrimedForChild remains false.
+                // - Standard + Shift+Enter -> Child, isPrimedForChild remains false.
+                // By setting it to false here, after handleNodeClick(newNode) has primed the *new* node,
+                // we achieve the correct state for the *next* interaction.
                 isPrimedForChild = false;
-                nodeInput.placeholder = "Enter a sibling (Enter) or child (Shift+Enter)...";
+                nodeInput.placeholder = "Enter a sibling (Enter) or child (Shift+Enter)..."; // Update placeholder for the new state.
                 nodeInput.value = '';
+            } else if (nodes.length === 0 && text) {
+                // If creating the first node failed (e.g., addNode returned null due to empty text, though already checked),
+                // reset placeholder. This is a fallback.
+                nodeInput.placeholder = "Enter your central idea...";
+            } else if (!selectedNode && nodes.length > 0 && text) {
+                 // If user typed text but no node was selected (and it wasn't the first node scenario)
+                nodeInput.placeholder = "Select a node first, or start a new idea.";
             }
+            // If newNode is null, and a node *was* selected, the placeholder (e.g., "Add child to X")
+            // set by a previous handleNodeClick should remain, as the action failed.
         });
 
         d3.select("body").on("keydown", (event) => {
+            // --- Undo Logic (Ctrl+Z / Cmd+Z) ---
             if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
-                event.preventDefault();
-                const lastNodeAdded = historyStack.pop();
-                if (lastNodeAdded) {
-                    const nodeToRemove = nodes.find(n => n.id === lastNodeAdded.id);
-                    if(nodeToRemove) removeNode(nodeToRemove);
+                event.preventDefault(); // Prevent default browser undo action
+                const nodeToUndo = historyStack.pop(); // Pop the last added node object
+
+                if (nodeToUndo) {
+                    // The historyStack stores direct references to the node objects.
+                    // Call removeNode directly with the popped node.
+                    // removeNode will handle all necessary cleanup including removing from the 'nodes' array,
+                    // links, updating selection, and refreshing the graph.
+                    removeNode(nodeToUndo);
                 }
+                // If historyStack is empty, nodeToUndo will be undefined, and nothing happens, which is correct.
+                return;
+            }
+
+            // --- Arrow Key Navigation ---
+            const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+            if (arrowKeys.includes(event.key)) {
+                if (selectedNode && document.activeElement !== nodeInput) {
+                    event.preventDefault();
+                    let newNavigatedNode = null;
+                    let parentNode = null;
+
+                    switch (event.key) {
+                        case "ArrowUp":
+                            // Find parent of selectedNode
+                            const parentLink = links.find(l => l.target.id === selectedNode.id);
+                            if (parentLink) {
+                                newNavigatedNode = parentLink.source;
+                            }
+                            break;
+                        case "ArrowDown":
+                            // Focus first child if available
+                            if (selectedNode.children && selectedNode.children.length > 0) {
+                                newNavigatedNode = selectedNode.children[0];
+                            }
+                            break;
+                        case "ArrowLeft":
+                            // Focus previous sibling
+                            parentNode = links.find(l => l.target.id === selectedNode.id)?.source;
+                            if (parentNode && parentNode.children) {
+                                const currentIndex = parentNode.children.findIndex(child => child.id === selectedNode.id);
+                                if (currentIndex > 0) {
+                                    newNavigatedNode = parentNode.children[currentIndex - 1];
+                                }
+                            }
+                            break;
+                        case "ArrowRight":
+                            // Focus next sibling
+                            parentNode = links.find(l => l.target.id === selectedNode.id)?.source;
+                            if (parentNode && parentNode.children) {
+                                const currentIndex = parentNode.children.findIndex(child => child.id === selectedNode.id);
+                                if (currentIndex !== -1 && currentIndex < parentNode.children.length - 1) {
+                                    newNavigatedNode = parentNode.children[currentIndex + 1];
+                                }
+                            }
+                            break;
+                    }
+
+                    if (newNavigatedNode) {
+                        handleNodeClick(null, newNavigatedNode); // Update selection, highlight, placeholder
+                        // optimizeView(); // Pan/zoom to the new node - optimizeView is called by updateGraph called by handleNodeClick
+                    }
+                }
+                // Important: return here to prevent falling through to delete logic if an arrow key was pressed
+                // (even if no navigation occurred due to boundary conditions like no parent/child/sibling).
                 return; 
             }
-            if(document.activeElement === nodeInput) return;
-            if(selectedNode && (event.key === 'Delete' || event.key === 'Backspace')){
+
+            // --- Delete Node Logic (Delete / Backspace) ---
+            // This condition should only be checked if not navigating or undoing.
+            if (document.activeElement === nodeInput) return; // If input is focused, don't delete nodes
+
+            if (selectedNode && (event.key === 'Delete' || event.key === 'Backspace')) {
                 event.preventDefault();
                 removeNode(selectedNode);
             }
         });
         
         // --- LLM and Dragging ---
-        async function triggerProactiveSuggestions(newNode) { /* ... same as before ... */ }
-        async function callProactiveGemini(context, latestEntry) { /* ... same as before ... */ }
-        summarizeBtn.addEventListener('click', async () => { /* ... same as before ... */ });
-        elaborateBtn.addEventListener('click', async () => { /* ... same as before ... */ });
-        function flashNode(nodeId) { /* ... same as before ... */ }
-        function displayAiSuggestions(suggestions) { /* ... same as before ... */ }
-        function displayAiResponse(text, title) { /* ... same as before ... */ }
+
+
+        /**
+         * Calculates a hypothetical position for a new node (child or sibling).
+         * @param {Object|null} parentNode The parent node. Null if suggesting a new root node.
+         * @param {string} newText The text for the new hypothetical node (for radius calculation).
+         * @param {number} indexInSuggestionList The index of this suggestion in the list (for staggering root suggestions).
+         * @param {Object[]} existingRealSiblings Array of existing real sibling nodes (children of parentNode or other root nodes).
+         * @param {number} totalSuggestionsInList Total number of suggestions being placed (for root node layout).
+         * @returns {Object} {x, y, depth, radius}
+         */
+        function calculateHypotheticalNodePosition(parentNode, newText, indexInSuggestionList, existingRealSiblings = [], totalSuggestionsInList = 1) {
+            const depth = parentNode ? parentNode.depth + 1 : 0;
+            const targetDistance = 125 * Math.pow(1.15, depth);
+            const calculatedRadius = getEstimatedRadiusFromText(newText, depth); // Assumes getEstimatedRadiusFromText is available
+
+            if (!parentNode) { // Suggesting new root nodes
+                const baseOffsetY = 150;
+                const spacingX = calculatedRadius * 2 + 50; // Increased spacing for root suggestions
+                let canvasCenterX = container.clientWidth / 2;
+                let lowestY = container.clientHeight / 2 + baseOffsetY; // Default if no nodes
+
+                if (nodes.length > 0) {
+                    let currentLowestY = -Infinity;
+                    nodes.forEach(n => {
+                        if (n.y + (n.radius || 30) > currentLowestY) {
+                            currentLowestY = n.y + (n.radius || 30);
+                        }
+                    });
+                    lowestY = currentLowestY + baseOffsetY;
+                }
+
+                const totalLayoutWidth = (totalSuggestionsInList * spacingX) - (totalSuggestionsInList > 0 ? 50: 0); // Adjusted total width
+                const startX = canvasCenterX - totalLayoutWidth / 2;
+                const initialX = startX + (indexInSuggestionList * spacingX) + calculatedRadius; // Center each ghost node
+
+                return { x: initialX, y: lowestY, depth, radius: calculatedRadius };
+            }
+
+            // Logic for sibling nodes (children of parentNode)
+            let parentAngle;
+            if (parentNode.depth === 0) {
+                parentAngle = -Math.PI / 2; // Default: children go upwards-ish for root (can be adjusted)
+            } else {
+                const grandParentLink = links.find(l => l.target.id === parentNode.id);
+                const grandParent = grandParentLink ? grandParentLink.source : (nodes.length > 0 ? nodes[0] : null);
+                if (grandParent && typeof grandParent.x === 'number' && typeof grandParent.y === 'number' && typeof parentNode.x === 'number' && typeof parentNode.y === 'number') {
+                     parentAngle = Math.atan2(parentNode.y - grandParent.y, parentNode.x - grandParent.x);
+                } else {
+                    parentAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI / 4; // Default if no clear grandparent angle
+                }
+            }
+
+            const coneWidth = (160 * Math.PI) / 180; // 160-degree cone
+            let coneStart = parentAngle - coneWidth / 2;
+
+            const currentSiblingAngles = (existingRealSiblings || [])
+                .map(child => Math.atan2(child.y - parentNode.y, child.x - parentNode.x))
+                .sort((a, b) => a - b);
+
+            let bestAngle = coneStart + coneWidth / 2; // Default to middle of the cone
+
+            if (currentSiblingAngles.length > 0) {
+                let maxGap = 0;
+                let angleAtMaxGap = -1;
+
+                let normalizedSiblings = currentSiblingAngles.map(a => {
+                    let norm = a - coneStart;
+                    while (norm < 0) norm += 2 * Math.PI;
+                    norm = norm % (2 * Math.PI);
+                    return norm;
+                }).filter(a => a >= -0.001 && a <= coneWidth + 0.001) // Allow for slight floating point errors around 0 and coneWidth
+                  .sort((a, b) => a - b);
+
+                if (normalizedSiblings.length > 0) {
+                    // Gap from cone start to first sibling
+                    maxGap = normalizedSiblings[0];
+                    angleAtMaxGap = coneStart + maxGap / 2;
+
+                    // Gaps between siblings
+                    for (let i = 0; i < normalizedSiblings.length - 1; i++) {
+                        const gap = normalizedSiblings[i+1] - normalizedSiblings[i];
+                        if (gap > maxGap) {
+                            maxGap = gap;
+                            angleAtMaxGap = coneStart + normalizedSiblings[i] + gap / 2;
+                        }
+                    }
+                    // Gap from last sibling to cone end
+                    const lastGap = coneWidth - normalizedSiblings[normalizedSiblings.length - 1];
+                    if (lastGap > maxGap) {
+                        maxGap = lastGap;
+                        angleAtMaxGap = coneStart + normalizedSiblings[normalizedSiblings.length - 1] + lastGap / 2;
+                    }
+                    bestAngle = angleAtMaxGap;
+                }
+                // If no siblings are strictly within the cone after normalization, bestAngle remains the middle of the cone.
+            }
+
+            const initialX = parentNode.x + targetDistance * Math.cos(bestAngle);
+            const initialY = parentNode.y + targetDistance * Math.sin(bestAngle);
+
+            return { x: initialX, y: initialY, depth, radius: calculatedRadius };
+        }
+
+        /**
+         * Handles the click event on a ghost node to materialize it.
+         * (To be fully implemented in the next step)
+         */
+        function handleGhostNodeClick(ghostNodeData) {
+            console.log("Ghost node clicked:", ghostNodeData);
+            // Implementation for next step:
+            // 1. Call addNode(ghostNodeData.name, ghostNodeData.actualParentNode)
+            // 2. If addNode is successful, remove all ghost nodes: masterGroup.selectAll(".ghost-node").remove();
+            // 3. The new node will trigger its own proactive suggestions if configured.
+            // 4. UpdateGraph will be called by addNode.
+        }
+
+        /**
+         * Determines appropriate text color (black or white) based on background color's luminance.
+         * @param {string} backgroundColor The background color string (e.g., from d3.color or colorScale).
+         * @returns {string} '#000000' for black or '#FFFFFF' for white.
+         */
+        function getTextColor(backgroundColor) {
+            const d3Color = d3.color(backgroundColor);
+            if (!d3Color) return '#FFFFFF'; // Default to white if color is invalid
+
+            const r_sRGB = d3Color.r / 255;
+            const g_sRGB = d3Color.g / 255;
+            const b_sRGB = d3Color.b / 255;
+
+            const toLinear = (c) => (c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+            const r_lin = toLinear(r_sRGB);
+            const g_lin = toLinear(g_sRGB);
+            const b_lin = toLinear(b_sRGB);
+
+            const L = 0.2126 * r_lin + 0.7152 * g_lin + 0.0722 * b_lin;
+            return (L > 0.5) ? '#000000' : '#FFFFFF';
+        }
+
+
+        /**
+         * Calculates the complementary color for a given hex color string.
+         * @param {string} colorString The base color string (e.g., "#RRGGBB" or "rgb(r,g,b)").
+         * @returns {string} The complementary color in hex format.
+         */
+        function getComplementaryColor(colorString) {
+            let d3Color = d3.color(colorString);
+            if (!d3Color) { // Fallback if color string is invalid
+                return "#808080"; // Return neutral gray
+            }
+            let hsl = d3Color.hsl();
+            hsl.h = (hsl.h + 180) % 360; // Shift hue by 180 degrees
+            return d3.hsl(hsl.h, hsl.s, hsl.l).rgb().hex();
+        }
+
+        /**
+         * Gathers all text from a node and its descendants.
+         * @param {Object} node The starting node.
+         * @returns {string} A concatenated string of all node names in the branch.
+         */
+        function gatherBranchText(node) {
+            let text = node.name;
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(child => {
+                    text += " " + gatherBranchText(child); // Recursive call, space separated
+                });
+            }
+            return text;
+        }
+
+        /**
+         * Calls the Gemini API to get a summary for the given text.
+         * @param {string} branchContextText The concatenated text of a node and its children.
+         * @returns {Promise<string|null>} A summary string or null on error.
+         */
+        async function callGeminiForSummary(branchContextText) {
+            if (GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
+                console.warn("Gemini API key not set. Skipping summary.");
+                return "Summarization feature disabled: API key not set."; // Return a message to display
+            }
+
+            const prompt = `
+                Please provide a concise, one-sentence summary for the following collection of ideas from a mind map branch.
+                Focus on the main concept of the root of this branch, which is the beginning of the text.
+                Branch context: "${branchContextText}"
+                Summary:
+            `;
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error('Gemini API Error (Summary):', response.status, errorBody);
+                    return `AI summary error: ${response.status}. Check console.`;
+                }
+
+                const data = await response.json();
+                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                } else {
+                    console.error('Unexpected response structure from Gemini (Summary):', data);
+                    return "AI summary error: Unexpected response structure.";
+                }
+            } catch (error) {
+                console.error('Network or other error calling Gemini API (Summary):', error);
+                return `AI summary error: Network issue. ${error.message}`;
+            }
+        }
+
+        /**
+         * Calls the Gemini API to get an elaboration for the given node text.
+         * @param {string} nodeText The text of the node to elaborate on.
+         * @returns {Promise<string|null>} An elaboration string or null on error.
+         */
+        async function callGeminiForElaboration(nodeText) {
+            if (GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
+                console.warn("Gemini API key not set. Skipping elaboration.");
+                return "Elaboration feature disabled: API key not set.";
+            }
+
+            const prompt = `
+                Please provide a detailed paragraph elaborating on the following topic from a mind map node: "${nodeText}"
+                Explain the core concept, its significance, or key aspects related to it.
+                Elaboration:
+            `;
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error('Gemini API Error (Elaboration):', response.status, errorBody);
+                    return `AI elaboration error: ${response.status}. Check console.`;
+                }
+
+                const data = await response.json();
+                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                } else {
+                    console.error('Unexpected response structure from Gemini (Elaboration):', data);
+                    return "AI elaboration error: Unexpected response structure.";
+                }
+            } catch (error) {
+                console.error('Network or other error calling Gemini API (Elaboration):', error);
+                return `AI elaboration error: Network issue. ${error.message}`;
+            }
+        }
+
+        /**
+         * Calls the Gemini API to get text correction and child node suggestions.
+         * @param {string} nodeText The current node's text.
+         * @param {string|null} parentText The parent node's text (or null if no parent).
+         * @param {string[]} existingSiblingTexts An array of texts of existing sibling nodes.
+         * @returns {Promise<Object|null>} An object with corrected_text and suggested_siblings, or null on error.
+         */
+        // Helper to calculate text width for radius estimation - used by hypothetical and real nodes
+        function getEstimatedRadiusFromText(text, depth) {
+            let calculatedRadius = 30; // Default radius
+            const tempTextEl = svg.append("text").text(text)
+                                .style("font-size", `${Math.max(9, 18 - depth * 2)}px`)
+                                .style("font-weight", "500")
+                                .attr("opacity", 0); // Hidden, just for measurement
+            try {
+                const bboxLength = tempTextEl.node().getComputedTextLength();
+                calculatedRadius = bboxLength / 2 + 15;
+            } catch (e) {
+                console.warn("Could not compute text BBox for radius estimation", e);
+            }
+            tempTextEl.remove();
+            return calculatedRadius;
+        }
+
+        async function callProactiveGemini(nodeText, parentText, existingSiblingTexts) {
+            if (GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
+                console.warn("Gemini API key not set. Skipping proactive suggestions.");
+                return null;
+            }
+
+            // Construct the prompt for Gemini to ask for sibling suggestions
+            const prompt = `
+                You are a helpful mind mapping assistant.
+                The user is working on a mind map and has just finished editing or creating a node.
+                Current node text: "${nodeText}"
+                Parent node text: "${parentText || 'None'}"
+                Texts of existing siblings to the current node: ${existingSiblingTexts && existingSiblingTexts.length > 0 ? JSON.stringify(existingSiblingTexts) : 'None'}
+
+                Please perform the following tasks:
+                1. Correct any spelling mistakes, grammatical errors, or capitalization issues in the "Current node text". If the text is already perfect, return it as is.
+                2. Based on the "Corrected node text" AND its relationship to the "Parent node text" and "Existing sibling texts", generate 2-3 very short (1-3 word) ideas for NEW SIBLING nodes. These ideas should be distinct, relevant, and suitable to appear at the same level as the corrected current node. If the current node is a root node (no parent), suggest other potential root ideas that are related or contrasting.
+
+                Respond with a single, valid JSON object with two keys: "corrected_text" (string) and "suggested_siblings" (an array of strings).
+
+                Example for a node with a parent:
+                Current node text: "Data Analisys"
+                Parent node text: "Marketing Campaign"
+                Existing sibling texts: ["Social Media Ads", "Email Outreach"]
+                Your response should look like:
+                {
+                  "corrected_text": "Data Analysis",
+                  "suggested_siblings": ["Performance Metrics", "Budget Allocation", "Target Audience Insights"]
+                }
+
+                Example for a root node:
+                Current node text: "Healthy Recipes"
+                Parent node text: "None"
+                Existing sibling texts: "None"
+                Your response should look like:
+                {
+                  "corrected_text": "Healthy Recipes",
+                  "suggested_siblings": ["Fitness Routines", "Mindfulness Practices", "Meal Planning"]
+                }
+            `;
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        // Optional: Add generationConfig if needed for more control
+                        // generationConfig: {
+                        //   temperature: 0.7,
+                        //   topK: 1,
+                        //   topP: 1,
+                        //   maxOutputTokens: 2048,
+                        //   responseMimeType: "application/json", // Request JSON output if model supports it
+                        // }
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error('Gemini API Error:', response.status, errorBody);
+                    // Display a user-friendly error in suggestionPanel or an alert
+                    suggestionPanel.innerHTML = `<div class="text-center text-red-500">AI suggestion error: ${response.status}. Check console.</div>`;
+                    return null;
+                }
+
+                const data = await response.json();
+
+                if (data.candidates && data.candidates.length > 0 &&
+                    data.candidates[0].content && data.candidates[0].content.parts &&
+                    data.candidates[0].content.parts.length > 0) {
+
+                    const rawJsonString = data.candidates[0].content.parts[0].text;
+                    try {
+                        // The response itself is expected to be a JSON string, so parse it.
+                        const parsedResult = JSON.parse(rawJsonString);
+                        // Ensure the response has the expected keys, even if the array is empty
+                        return {
+                            corrected_text: parsedResult.corrected_text || nodeText, // Fallback to original if missing
+                            suggested_siblings: parsedResult.suggested_siblings || []
+                        };
+                    } catch (e) {
+                        console.error('Error parsing JSON response from Gemini:', e, "\nRaw string:", rawJsonString);
+                        suggestionPanel.innerHTML = '<div class="text-center text-red-500">AI suggestion error: Could not parse response.</div>';
+                        return null;
+                    }
+                } else {
+                    console.error('Unexpected response structure from Gemini:', data);
+                     suggestionPanel.innerHTML = '<div class="text-center text-red-500">AI suggestion error: Unexpected response.</div>';
+                    return null;
+                }
+
+            } catch (error) {
+                console.error('Network or other error calling Gemini API:', error);
+                suggestionPanel.innerHTML = `<div class="text-center text-red-500">AI suggestion error: Network issue. ${error.message}</div>`;
+                return null;
+            }
+        }
+
+        /**
+         * Triggers proactive LLM suggestions for a newly added node.
+         * Updates the node's text if corrected and displays child suggestions.
+         * @param {Object} node The newly added node object.
+         */
+        async function triggerProactiveSuggestions(node) {
+            if (!node || !node.name) return;
+
+            loadingIndicator.style.display = 'block';
+            const directResponseArea = document.getElementById('ai-direct-response-area');
+            if (directResponseArea) directResponseArea.innerHTML = ''; // Clear direct responses
+            // Do not clear the entire suggestionPanel if proactive suggestions for siblings are about to be shown.
+            // suggestionPanel.innerHTML = ''; // Avoid this if it clears a pending direct response.
+
+            // Gather context for sibling suggestions
+            const parentLink = links.find(l => l.target.id === node.id);
+            const parentNode = parentLink ? parentLink.source : null;
+            const parentText = parentNode ? parentNode.name : null;
+            const existingSiblingTexts = parentNode ? parentNode.children.filter(child => child.id !== node.id).map(child => child.name) : [];
+
+            const apiResponse = await callProactiveGemini(node.name, parentText, existingSiblingTexts);
+
+            loadingIndicator.style.display = 'none';
+
+            if (apiResponse) {
+                // Update node text if corrected by AI and different from original
+                if (apiResponse.corrected_text && apiResponse.corrected_text.trim() !== node.name) {
+                    node.name = apiResponse.corrected_text.trim();
+                    updateGraph();
+                    flashNode(node.id);
+                }
+
+                // Display suggested sibling nodes
+                // The 'contextForDisplay' is the parent node if it exists (for adding new children to it, i.e. siblings)
+                // or null if the current node is a root node (for adding new root nodes as siblings).
+                const contextForDisplay = parentNode;
+                if (apiResponse.suggested_siblings && apiResponse.suggested_siblings.length > 0) {
+                    displayAiSuggestions(apiResponse.suggested_siblings, contextForDisplay, node.name);
+                } else {
+                    // Clear only suggestion area if no sibling suggestions, keep direct response area if any.
+                    const suggestionContainer = suggestionPanel.querySelector('.suggestion-container');
+                    if(suggestionContainer) suggestionContainer.remove();
+
+                    const noSuggestionMsg = document.createElement('div');
+                    noSuggestionMsg.className = 'text-center text-gray-500';
+                    noSuggestionMsg.textContent = 'No specific sibling/related suggestions for this idea.';
+                    // Ensure this message doesn't clear a direct response that might be there.
+                    // If directResponseArea is empty, we can use suggestionPanel.
+                    if(directResponseArea && !directResponseArea.hasChildNodes()){
+                        suggestionPanel.innerHTML = ''; // Clear panel before adding "no suggestions"
+                        suggestionPanel.appendChild(noSuggestionMsg);
+                    } else if (!directResponseArea) { // if directResponseArea itself doesn't exist
+                        suggestionPanel.innerHTML = '';
+                        suggestionPanel.appendChild(noSuggestionMsg);
+                    }
+                    // If directResponseArea has content, we don't show "no suggestions" to avoid clutter.
+                }
+            } else {
+                // If apiResponse is null (error happened), a message might already be in suggestionPanel from callProactiveGemini
+                // Or add a generic one here if not:
+                if (!suggestionPanel.innerHTML.includes('error')) { // Avoid overwriting specific error
+                   suggestionPanel.innerHTML = '<div class="text-center text-gray-500">Could not fetch AI suggestions.</div>';
+                }
+            }
+        }
+
+        summarizeBtn.addEventListener('click', async () => {
+            if (!selectedNode) {
+                displayAiResponse("Please select a node to summarize.", "Summarize Error");
+                return;
+            }
+
+            loadingIndicator.style.display = 'block';
+            // Clear only the direct response area, leave suggestions if any
+            const directResponseArea = document.getElementById('ai-direct-response-area');
+            if (directResponseArea) directResponseArea.innerHTML = '';
+
+
+            const branchText = gatherBranchText(selectedNode);
+            const summary = await callGeminiForSummary(branchText);
+
+            loadingIndicator.style.display = 'none';
+
+            if (summary) {
+                displayAiResponse(summary, `Summary for "${selectedNode.name}"`);
+            } else {
+                // Error messages are now returned by callGeminiForSummary and displayed by displayAiResponse
+                // If it returned null strictly due to API key, that message is already set.
+                // Otherwise, callGeminiForSummary returns an error string.
+                displayAiResponse("Failed to get summary. See console for details.", "Summarize Error");
+            }
+        });
+
+        elaborateBtn.addEventListener('click', async () => {
+            if (!selectedNode) {
+                displayAiResponse("Please select a node to elaborate on.", "Elaborate Error");
+                return;
+            }
+
+            loadingIndicator.style.display = 'block';
+            const directResponseArea = document.getElementById('ai-direct-response-area');
+            if (directResponseArea) directResponseArea.innerHTML = ''; // Clear previous direct responses
+
+            const elaboration = await callGeminiForElaboration(selectedNode.name);
+
+            loadingIndicator.style.display = 'none';
+
+            if (elaboration) {
+                displayAiResponse(elaboration, `Elaboration for "${selectedNode.name}"`);
+            } else {
+                 // Error messages are now returned by callGeminiForElaboration and displayed by displayAiResponse
+                displayAiResponse("Failed to get elaboration. See console for details.", "Elaborate Error");
+            }
+        });
+
+        /**
+         * Briefly highlights a node.
+         * @param {number} nodeId The ID of the node to flash.
+         */
+        function flashNode(nodeId) {
+            const nodeElement = nodeGroup.selectAll(".node").filter(d => d.id === nodeId);
+            if (nodeElement.empty()) {
+                return;
+            }
+
+            const nodeData = nodeElement.datum(); // Get the data bound to the node
+            if (!nodeData || typeof nodeData.radius === 'undefined' || typeof nodeData.depth === 'undefined') {
+                console.error("Node data for flashing is incomplete.", nodeData);
+                return;
+            }
+
+            // Get the node's base color (which is a gradient, so we use the colorScale directly)
+            // d3.color() can parse various formats, including rgb() strings from colorScale
+            const baseColorStr = colorScale(nodeData.depth);
+            const complementaryHex = getComplementaryColor(baseColorStr);
+
+            // Remove any existing wipe circles for this node to prevent multiple overlays
+            nodeElement.select("circle.wipe-overlay").remove();
+
+            // Append a new temporary "wipe" circle to the nodeElement (the <g> tag)
+            const wipeCircle = nodeElement.append("circle")
+                .attr("class", "wipe-overlay") // For potential removal or specific styling
+                .attr("r", 0) // Start with radius 0
+                .attr("fill", complementaryHex)
+                .attr("opacity", 0.7) // Start with some opacity
+                .lower(); // Ensure it's drawn below the main circle's text if any, but above its main fill
+
+            // Animate the wipeCircle
+            wipeCircle.transition("wipeFlashIn")
+                .duration(300) // Wipe outward duration
+                .attr("r", nodeData.radius + 2) // Animate radius to cover the node (plus a little padding)
+                .transition("wipeFlashOut")
+                .duration(250) // Fade out duration
+                .delay(100) // Hold the full wipe briefly
+                .attr("opacity", 0)
+                .on("end", function() {
+                    d3.select(this).remove(); // Remove the overlay circle after animation
+                });
+        }
+
+        /**
+         * Displays AI-generated sibling (or related root) suggestions in the suggestion panel.
+         * @param {string[]} suggestionsArray Array of suggestion strings.
+         * @param {Object|null} actualParentNode The actual parent node if suggesting siblings, or null if suggesting related root ideas.
+         * @param {string} originalNodeName The name of the node that triggered these suggestions, for context in the title.
+         */
+        /**
+         * Calculates a hypothetical position for a new node (child or sibling).
+         * @param {Object|null} parentNode The parent node. Null if suggesting a new root node.
+         * @param {string} newText The text for the new hypothetical node (for radius calculation).
+         * @param {number} indexInSuggestionList The index of this suggestion in the list (for staggering root suggestions).
+         * @param {Object[]} existingRealSiblings Array of existing real sibling nodes (children of parentNode).
+         * @returns {Object} {x, y, depth, radius}
+         */
+        function calculateHypotheticalNodePosition(parentNode, newText, indexInSuggestionList, existingRealSiblings = []) {
+            const depth = parentNode ? parentNode.depth + 1 : 0;
+            const targetDistance = 125 * Math.pow(1.15, depth);
+
+            // Calculate radius for the hypothetical node (similar to updateGraph)
+            let calculatedRadius = 30; // Default radius
+            const tempText = svg.append("text").text(newText)
+                              .style("font-size", `${Math.max(9, 18 - depth * 2)}px`)
+                              .style("font-weight", "500");
+            try {
+                const bboxLength = tempText.node().getComputedTextLength();
+                calculatedRadius = bboxLength / 2 + 15;
+            } catch (e) {
+                console.warn("Could not compute text BBox for hypothetical node", e);
+            }
+            tempText.remove();
+
+
+            if (!parentNode) { // Suggesting new root nodes
+                // Place new root suggestions in a row below existing content, or centered if no content
+                const baseOffsetY = 200; // Base offset below the center or existing content
+                const spacingX = calculatedRadius * 2 + 40; // Horizontal spacing between suggestions
+                let startX = container.clientWidth / 2;
+
+                if (nodes.length > 0) {
+                    const allNodesBBox = nodeGroup.node().getBBox();
+                    startX = allNodesBBox.x + allNodesBBox.width / 2; // Center below existing nodes
+                    // initialY = allNodesBBox.y + allNodesBBox.height + baseOffsetY;
+                }
+                 // Distribute horizontally:
+                const totalLayoutWidth = (totalSuggestionsInList * spacingX) - (totalSuggestionsInList > 0 ? 50 : 0); // Adjusted total width
+                const initialX = startX - (totalLayoutWidth / 2) + (indexInSuggestionList * spacingX) + (spacingX / 2); // Centering each ghost
+                const initialY = (nodes.length > 0 ? nodeGroup.node().getBBox().y + nodeGroup.node().getBBox().height : container.clientHeight / 2) + baseOffsetY;
+
+                return { x: initialX, y: initialY, depth, radius: calculatedRadius };
+            }
+
+            // Logic for sibling nodes (children of parentNode)
+            let parentAngle;
+            if (parentNode.depth === 0) { // parentNode is the root
+                parentAngle = -Math.PI / 2; // Default: children go upwards first for root
+            } else {
+                // Find grandparent to determine parent's angle relative to its own parent
+                const grandParentLink = links.find(l => l.target.id === parentNode.id);
+                const grandParent = grandParentLink ? grandParentLink.source : (nodes.length > 0 ? nodes[0] : null); // Fallback to root if no explicit grandparent
+                if (grandParent) {
+                     parentAngle = Math.atan2(parentNode.y - grandParent.y, parentNode.x - grandParent.x);
+                } else { // parent is root, but we are calculating for its children
+                    parentAngle = -Math.PI / 2;
+                }
+            }
+
+            const coneWidth = (160 * Math.PI) / 180;
+            const coneStart = parentAngle - coneWidth / 2;
+
+            // Use only actual children of the parentNode for angle calculation
+            const siblingAngles = (existingRealSiblings || []).map(child => Math.atan2(child.y - parentNode.y, child.x - parentNode.x)).sort((a, b) => a - b);
+
+            let bestAngle = coneStart + coneWidth / 2; // Default to middle of the cone
+
+            if (siblingAngles.length > 0) {
+                let maxGap = 0;
+                let angleAtMaxGap = -1;
+                let normalizedSiblings = siblingAngles.map(a => {
+                    let norm = a - coneStart;
+                    while (norm < 0) norm += 2 * Math.PI;
+                    return norm % (2 * Math.PI);
+                }).filter(a => a <= coneWidth + 0.001).sort((a, b) => a - b);
+
+                if (normalizedSiblings.length > 0) {
+                    maxGap = normalizedSiblings[0]; // Gap from start of cone to first sibling
+                    angleAtMaxGap = coneStart + maxGap / 2;
+
+                    for (let i = 0; i < normalizedSiblings.length - 1; i++) {
+                        let gap = normalizedSiblings[i+1] - normalizedSiblings[i];
+                        if (gap > maxGap) {
+                            maxGap = gap;
+                            angleAtMaxGap = coneStart + normalizedSiblings[i] + gap / 2;
+                        }
+                    }
+                    let lastGap = coneWidth - normalizedSiblings[normalizedSiblings.length - 1]; // Gap from last sibling to end of cone
+                    if (lastGap > maxGap) {
+                        maxGap = lastGap; // No need to reassign angleAtMaxGap, it was the largest so far or this is it
+                        angleAtMaxGap = coneStart + normalizedSiblings[normalizedSiblings.length - 1] + lastGap / 2;
+                    }
+                    bestAngle = angleAtMaxGap;
+                }
+            }
+            // If no siblings are in cone, bestAngle remains middle of cone.
+
+            const initialX = parentNode.x + targetDistance * Math.cos(bestAngle);
+            const initialY = parentNode.y + targetDistance * Math.sin(bestAngle);
+
+            return { x: initialX, y: initialY, depth, radius: calculatedRadius };
+        }
+
+
+        /**
+        /**
+         * Displays AI-generated sibling (or related root) suggestions as ghost nodes on the canvas.
+         * @param {string[]} suggestionsArray Array of suggestion strings.
+         * @param {Object|null} actualParentNode The actual parent node if suggesting siblings, or null if suggesting related root ideas for the originalNode.
+         * @param {string} originalNodeName The name of the node that triggered these suggestions, for context.
+         */
+        function displayAiSuggestions(suggestionsArray, actualParentNode, originalNodeName) {
+            ghostNodeGroup.selectAll(".ghost-node").remove(); // Clear existing ghost nodes from the SVG
+
+            // Clear any previous HTML-based suggestion UI from the suggestionPanel
+            const htmlSuggestionContainer = suggestionPanel.querySelector('.suggestion-container');
+            if (htmlSuggestionContainer) {
+                htmlSuggestionContainer.remove();
+            }
+
+            const initialHelpText = document.getElementById('initial-help-text');
+            if(initialHelpText) initialHelpText.innerHTML = ''; // Clear initial help text
+
+            // Also clear any direct "No suggestions" message if we are about to show ghost nodes or a new message
+             const directResponseArea = document.getElementById('ai-direct-response-area');
+             if (directResponseArea && (directResponseArea.textContent.includes("No specific sibling/related suggestions") || directResponseArea.textContent.includes("No new suggestions"))) {
+                directResponseArea.innerHTML = '';
+            }
+
+
+            if (!suggestionsArray || suggestionsArray.length === 0) {
+                 if(!directResponseArea || !directResponseArea.hasChildNodes()){ // Avoid overwriting summary/elaboration
+                    suggestionPanel.innerHTML = `<div id="initial-help-text" class="text-center text-gray-500">No new suggestions at this time.</div>`;
+                 }
+                return;
+            }
+
+            // Update HTML panel to indicate ghost nodes are on canvas
+            if (directResponseArea && directResponseArea.hasChildNodes()) {
+                let ghostMessageDiv = suggestionPanel.querySelector('.ghost-message');
+                if (!ghostMessageDiv) {
+                    ghostMessageDiv = document.createElement('div');
+                    ghostMessageDiv.className = 'text-center text-gray-500 text-sm mt-2 ghost-message';
+                    // Append to suggestionPanel, not directResponseArea, to ensure it's a separate message
+                    suggestionPanel.appendChild(ghostMessageDiv);
+                }
+                ghostMessageDiv.textContent = "Related ideas shown on canvas. Click to add.";
+            } else {
+                 suggestionPanel.innerHTML = `<div id="initial-help-text" class="text-center text-gray-500">Related ideas shown on canvas. Click to add.</div>`;
+            }
+
+            const existingRealSiblings = actualParentNode ? (actualParentNode.children || []) : nodes.filter(n => n.depth === 0);
+            const numSuggestions = suggestionsArray.length;
+
+            const ghostNodeDataObjects = suggestionsArray.map((suggestionString, i) => {
+                // Pass numSuggestions for root layout calculation
+                const positionData = calculateHypotheticalNodePosition(actualParentNode, suggestionString, i, existingRealSiblings, numSuggestions);
+                return {
+                    id: `ghost-${Date.now()}-${i}`, // Unique temporary ID
+                    name: suggestionString,
+                    x: positionData.x,
+                    y: positionData.y,
+                    depth: positionData.depth,
+                    radius: positionData.radius,
+                    isGhost: true,
+                    actualParentNode: actualParentNode,
+                    originalTriggerNodeName: originalNodeName
+                };
+            });
+
+            ghostNodeGroup.selectAll(".ghost-node")
+                .data(ghostNodeDataObjects, d => d.id)
+                .join(
+                    enter => {
+                        const ghostG = enter.append("g")
+                            .attr("class", "ghost-node")
+                            .attr("transform", d => `translate(${d.x},${d.y})`)
+                            .style("cursor", "pointer")
+                            .on("click", (event, d_ghost) => {
+                                event.stopPropagation();
+                                handleGhostNodeClick(d_ghost);
+                            });
+
+                        ghostG.append("circle")
+                            .attr("r", d => d.radius)
+                            .attr("fill", d => d3.color(colorScale(d.depth)).copy({opacity: 0.25}))
+                            .attr("stroke", d => d3.color(colorScale(d.depth)).brighter(0.5))
+                            .attr("stroke-width", 1.5)
+                            .attr("stroke-dasharray", "3 3");
+
+                        ghostG.append("text")
+                            .text(d => d.name)
+                            .attr("text-anchor", "middle")
+                            .attr("dominant-baseline", "central")
+                            .style("font-size", d => `${Math.max(9, 18 - d.depth * 2)}px`)
+                            .attr("fill", d => d3.color(getTextColor(colorScale(d.depth))).copy({opacity: 0.6}))
+                            .style("pointer-events", "none");
+
+                        return ghostG;
+                    }
+                );
+        }
+
+        /**
+         * Handles the click event on a ghost node to materialize it.
+         * (To be fully implemented in the next step)
+         */
+        function handleGhostNodeClick(ghostNodeData) {
+            console.log("Ghost node clicked:", ghostNodeData);
+            // Implementation for next step:
+            // 1. Call addNode(ghostNodeData.name, ghostNodeData.actualParentNode)
+            // 2. If addNode is successful, remove all ghost nodes: masterGroup.selectAll(".ghost-node").remove();
+            // 3. The new node will trigger its own proactive suggestions if configured.
+            // 4. UpdateGraph will be called by addNode.
+        }
+
+
+        /**
+         * Displays a general AI response in a bubble in the suggestion panel.
+         * (This function seems to be for other AI interactions like summarize/elaborate, keeping it for now)
+         * @param {string} text The AI-generated text to display.
+         * @param {string} title A title for the response bubble.
+         */
+        function displayAiResponse(text, title) {
+            // Ensure a dedicated area for direct AI responses (like summaries, elaborations) exists
+            // This is separate from the proactive suggestions area.
+            let directResponseArea = document.getElementById('ai-direct-response-area');
+            if (!directResponseArea) {
+                directResponseArea = document.createElement('div');
+                directResponseArea.id = 'ai-direct-response-area';
+                // Prepend it to suggestionPanel so it appears above proactive suggestions, or append as preferred.
+                // For now, let's prepend to make it distinct.
+                suggestionPanel.prepend(directResponseArea);
+            }
+
+            directResponseArea.innerHTML = ''; // Clear previous direct responses
+
+            const bubble = document.createElement('div');
+            bubble.className = 'ai-response-bubble'; // Existing class for styling
+
+            const heading = document.createElement('h3');
+            heading.textContent = title;
+            bubble.appendChild(heading);
+
+            const content = document.createElement('p');
+            content.textContent = text;
+            bubble.appendChild(content);
+
+            suggestionPanel.appendChild(bubble);
+        }
         
         function dragstarted(event, d) {
             if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x; d.fy = d.y;
+            // Set fx/fy for ALL nodes at the start of a drag.
+            // For the central node, this allows its fx/fy to be updated by the drag,
+            // which will then be constrained in the 'dragged' function.
+            d.fx = d.x;
+            d.fy = d.y;
             const link = links.find(l => l.target === d);
             if(link) link.preDragDistance = Math.hypot(d.x - link.source.x, d.y - link.source.y);
         }
+
         function dragged(event, d) {
-            d.fx = event.x; d.fy = event.y;
+            if (d.depth === 0 && typeof d.initialX === 'number' && typeof d.initialY === 'number') {
+                // Constrained dragging for the central node (depth 0)
+                // It can be dragged within a box defined by constraintOffset around its initialX and initialY
+                const clampedX = Math.max(d.initialX - constraintOffset, Math.min(event.x, d.initialX + constraintOffset));
+                const clampedY = Math.max(d.initialY - constraintOffset, Math.min(event.y, d.initialY + constraintOffset));
+                d.fx = clampedX;
+                d.fy = clampedY;
+            } else {
+                // Standard, unconstrained dragging for other nodes (depth !== 0)
+                d.fx = event.x;
+                d.fy = event.y;
+            }
         }
+
         function dragended(event, d) {
             if (!event.active) simulation.alphaTarget(0);
-            if(d.depth !== 0) { 
+            // For non-central nodes (depth !== 0), unpin them by clearing fx/fy,
+            // allowing the simulation to position them.
+            if (d.depth !== 0) {
                 d.fx = null;
                 d.fy = null;
             }
+            // For the central node (d.depth === 0), its fx/fy (which were updated by the
+            // constrained drag in the 'dragged' function) are intentionally NOT cleared.
+            // This keeps it pinned at its last dragged (and clamped) position.
             
             const link = links.find(l => l.target === d);
             if (link && link.preDragDistance) {
@@ -522,6 +1547,80 @@
         window.addEventListener('resize', optimizeView);
         applyTheme();
         d3.timer(() => simulation.alpha(0.005));
+
+        // --- PDF Export Event Listener ---
+        exportPdfBtn.addEventListener('click', () => {
+            const svgElement = document.getElementById('mindmap-svg');
+            if (!svgElement || nodes.length === 0) {
+                alert("Mind map is empty or SVG element not found. Nothing to export.");
+                return;
+            }
+
+            // Use the masterGroup for bounding box calculation to focus on content
+            const groupNode = masterGroup.node();
+            if (!groupNode) {
+                alert("Mind map content group not found.");
+                return;
+            }
+            const contentBBox = groupNode.getBBox();
+
+            // Add some padding to the bounding box for the PDF
+            const padding = 50; // 50pt padding
+            const pdfWidth = contentBBox.width + (2 * padding);
+            const pdfHeight = contentBBox.height + (2 * padding);
+
+            const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+
+            try {
+                // Ensure jsPDF is available (it's loaded from CDN)
+                if (typeof jspdf === 'undefined' || typeof jspdf.jsPDF === 'undefined') {
+                    alert("jsPDF library is not loaded. Cannot export PDF.");
+                    return;
+                }
+                 // Ensure SVGtoPDF is available (it's loaded from CDN)
+                if (typeof SVGtoPDF === 'undefined') {
+                    alert("SVGtoPDF library is not loaded. Cannot export PDF.");
+                    return;
+                }
+
+
+                const pdf = new jspdf.jsPDF({
+                    orientation: orientation,
+                    unit: 'pt',
+                    format: [pdfWidth, pdfHeight]
+                });
+
+                // Create a temporary clone of the masterGroup to apply transform for centering
+                const clonedGroup = groupNode.cloneNode(true);
+                const clonedGroupD3 = d3.select(clonedGroup);
+
+                // Original transform of masterGroup (from zoom/pan)
+                const originalTransform = masterGroup.attr("transform");
+
+                // We want the content (defined by contentBBox) to be centered within the PDF page.
+                // The SVGtoPDF function draws from the SVG's top-left (0,0).
+                // We need to translate the clonedGroup so that its contentBBox.x and .y are effectively at (padding, padding)
+                // within the PDF's coordinate system.
+                // The transform on masterGroup already positions it relative to the SVG's origin.
+                // For the PDF, we want the contentBBox of the *untransformed* group to start at padding.
+                // So, we effectively "undo" the bbox.x/y translation part for the PDF export.
+                clonedGroupD3.attr('transform', `translate(${-contentBBox.x + padding}, ${-contentBBox.y + padding})`);
+
+
+                // Use the cloned and transformed group for PDF generation
+                SVGtoPDF(pdf, clonedGroup, 0, 0, {
+                    width: pdfWidth, // Use the padded width for scaling context if needed by SVGtoPDF
+                    height: pdfHeight, // Use the padded height
+                    preserveAspectRatio: "xMidYMid meet" // Try to maintain aspect ratio
+                });
+
+                pdf.save('cogniflow-mindmap.pdf');
+
+            } catch (error) {
+                console.error("Error during PDF export:", error);
+                alert("An error occurred during PDF export. Check the console for details.");
+            }
+        });
 
     </script>
 </body>

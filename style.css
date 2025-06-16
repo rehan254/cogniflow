@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+body {
+    margin: 0;
+    overflow: hidden; /* Prevent scrollbars from canvas resizing */
+    font-family: 'Inter', sans-serif; /* Apply Inter font */
+    /* Background color will be set by JS */
+}
+
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex; /* For centering SVG if needed, or direct SVG sizing */
+    justify-content: center;
+    align-items: center;
+}
+
+#mindmap-canvas {
+    display: block; /* Remove extra space below SVG if it's inline */
+    /* width and height will be set by JS */
+}
+
+.link {
+    fill: none; /* Standard for paths used as lines */
+}
+
+/* Basic text styling for nodes - can be overridden by JS if needed */
+.node-text { /* Common class for all node-related text */
+    /* dominant-baseline and text-anchor are often set in JS based on context (e.g. textPath) */
+    /* font-size will be set by JS based on depth */
+    /* fill will be set by JS for contrast */
+    pointer-events: none; /* Text should not block clicks on the node shape */
+    font-family: 'Inter', sans-serif; /* Ensure Inter font for SVG text */
+}
+
+/* Styling for the main input field if needed */
+#node-input {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    z-index: 10; /* Ensure it's above the SVG */
+}
+
+/* Ghost node text, if not fully styled in JS */
+.ghost-node text {
+    pointer-events: none;
+}
+.idea-suggestion text {
+    pointer-events: none;
+}
+
+/* Definition node text styling (base) */
+.definition-node-title { /* If using a class for the title tspan */
+    font-weight: bold;
+}
+.definition-node-content { /* If using a class for content tspans */
+    /* font-size is set in JS for these */
+}
+
+#controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20; /* Above node input, below potential modals */
+}
+
+#export-pdf-button {
+    padding: 8px 15px;
+    background-color: #4CAF50; /* Example green */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#export-pdf-button:hover {
+    background-color: #45a049;
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CogniFlow</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="controls">
+        <button id="export-pdf-button">Export as PDF</button>
+    </div>
+    <div id="canvas-container">
+        <svg id="mindmap-canvas"></svg>
+    </div>
+
+    <!-- PDF Export Libraries (Conceptual - actual versions/choices may vary) -->
+    <!-- jsPDF -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> -->
+
+    <!-- If using svg2pdf.js (alternative to svg-to-pdfkit for direct jsPDF integration) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.1/dist/svg2pdf.umd.min.js"></script> -->
+
+    <!-- If attempting SVGtoPDF with PDFKit (more complex setup) -->
+    <!-- <script src="https://unpkg.com/pdfkit@0.13.0/js/pdfkit.standalone.js"></script> -->
+    <!-- <script src="https://unpkg.com/svg-to-pdfkit@0.1.8/source.js"></script> -->
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
