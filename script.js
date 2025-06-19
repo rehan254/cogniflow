@@ -864,9 +864,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     isBulletPoint: newNode.isBulletPoint
                 });
 
-                handleNodeClick(null, newNode); // This sets selectedNode, isPrimedForChild=true, and placeholder for newNode.
+                handleNodeClick(null, newNode); // This calls render() and sets up selection
                 nodeInput.value = '';
-                if (nodes.length === 1) {
+
+                // Restart simulation AFTER node is added and selections/renders are initiated
+                simulation.alpha(1).restart();
+
+                if (newNode.parentId === null || nodes.length === 1) { // If it's a root node or the very first node
                     fitViewToMindMap();
                 }
             } else if (selectedNode) {
@@ -1542,9 +1546,180 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // --- LLM Interaction Placeholder Functions ---
+
+    async function triggerProactiveSuggestions(newNode) {
+        if (!newNode) return;
+        console.log(`Placeholder: Triggering proactive suggestions for node: ${newNode.text} (ID: ${newNode.id})`);
+        // Simulate an API call
+        loadingIndicator.style.display = 'block';
+        try {
+            const context = `The user just added a node "${newNode.text}". What are some related ideas?`;
+            // In a real scenario, you might want to provide more context (parent, siblings etc.)
+            const suggestions = await callProactiveGemini(context, newNode.text);
+            displayAiSuggestions(suggestions, newNode);
+        } catch (error) {
+            console.error("Error in triggerProactiveSuggestions:", error);
+            displayAiResponse(`Error fetching suggestions for "${newNode.text}".`, "Error");
+        } finally {
+            loadingIndicator.style.display = 'none';
+        }
+    }
+
+    async function callProactiveGemini(context, latestEntry) {
+        console.log(`Placeholder: Calling proactive Gemini with context: "${context}", latest entry: "${latestEntry}"`);
+        // This would call the actual Gemini API
+        // For now, using the existing mock which expects a different prompt structure.
+        // Let's adapt or make a new mock structure if needed.
+        // For now, let's return a simple list of suggestions.
+        await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
+        return ["Proactive Suggestion 1", "Follow-up idea 2", "Another related concept 3"];
+    }
+
+    const summarizeBtn = document.getElementById('summarize-btn');
+    const elaborateBtn = document.getElementById('elaborate-btn');
+    const loadingIndicator = document.getElementById('loading-indicator'); // Assuming this exists in HTML based on original spec
+    const suggestionPanel = document.getElementById('suggestion-panel'); // Assuming this exists
+
+    if (summarizeBtn) {
+        summarizeBtn.addEventListener('click', async () => {
+            if (!selectedNode) {
+                alert("Please select a node to summarize.");
+                return;
+            }
+            console.log(`Placeholder: Summarize button clicked for node: ${selectedNode.text}`);
+            loadingIndicator.style.display = 'block';
+            // In a real app, gather context for summarization (e.g., node and its children)
+            const textToSummarize = `Node: ${selectedNode.text}` + (selectedNode.children ? selectedNode.children.map(c => c.name).join(', ') : '');
+            try {
+                const summary = await callGeminiAPI(`Summarize the following: ${textToSummarize}`, false);
+                displayAiResponse(summary, `Summary of "${selectedNode.text}"`);
+                flashNode(selectedNode.id);
+            } catch (error) {
+                console.error("Error summarizing:", error);
+                displayAiResponse(`Error summarizing "${selectedNode.text}".`, "Error");
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    } else {
+        console.warn("summarize-btn not found in the HTML.");
+    }
+
+    if (elaborateBtn) {
+        elaborateBtn.addEventListener('click', async () => {
+            if (!selectedNode) {
+                alert("Please select a node to elaborate on.");
+                return;
+            }
+            console.log(`Placeholder: Elaborate button clicked for node: ${selectedNode.text}`);
+            loadingIndicator.style.display = 'block';
+            try {
+                const elaboration = await callGeminiAPI(`Elaborate on the idea: ${selectedNode.text}`, false);
+                // Add elaborated text as new child nodes or display in panel
+                // For now, display in panel:
+                displayAiResponse(elaboration, `Elaboration for "${selectedNode.text}"`);
+                flashNode(selectedNode.id);
+            } catch (error) {
+                console.error("Error elaborating:", error);
+                displayAiResponse(`Error elaborating on "${selectedNode.text}".`, "Error");
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    } else {
+        console.warn("elaborate-btn not found in the HTML.");
+    }
+
+    function flashNode(nodeId) {
+        console.log(`Placeholder: Flashing node ID: ${nodeId}`);
+        const nodeElement = nodeGroups.filter(d => d.id === nodeId);
+        if (!nodeElement.empty()) {
+            const circle = nodeElement.select('circle'); // Or other shape
+            if (!circle.empty()) {
+                circle.classed('flashing', true);
+                setTimeout(() => circle.classed('flashing', false), 1000); // Match CSS animation
+            }
+        }
+    }
+
+    function displayAiSuggestions(suggestions, parentNode) {
+        console.log(`Placeholder: Displaying AI suggestions:`, suggestions, `for parent: ${parentNode ? parentNode.text : 'root'}`);
+        if (!suggestionPanel) {
+            console.error("suggestion-panel element not found in HTML.");
+            return;
+        }
+        // Clear previous suggestions and help text
+        suggestionPanel.innerHTML = '';
+
+        const helpText = document.getElementById('initial-help-text');
+        if (helpText) helpText.style.display = 'none';
+
+        if (!suggestions || suggestions.length === 0) {
+            suggestionPanel.innerHTML = '<p class="text-gray-500">No suggestions available right now.</p>';
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'suggestion-container';
+
+        suggestions.forEach(suggestionText => {
+            const suggestionNodeEl = document.createElement('div');
+            suggestionNodeEl.className = 'suggestion-node';
+            // suggestionNodeEl.style.backgroundColor = d3.color(chosenPalette.colors[Math.floor(Math.random() * chosenPalette.colors.length)]).brighter(0.2);
+            // suggestionNodeEl.style.color = getContrastingTextColor(suggestionNodeEl.style.backgroundColor);
+            // For now, use fixed colors or CSS defined ones if available
+            suggestionNodeEl.innerHTML = `<span class="plus-icon">+</span> <span>${suggestionText}</span>`;
+            suggestionNodeEl.onclick = () => {
+                console.log(`Adding suggested node: "${suggestionText}" to parent: ${parentNode ? parentNode.text : 'root'}`);
+                const newNode = addNode(suggestionText, parentNode);
+                if (newNode) {
+                    handleNodeClick(null, newNode); // Select the new node
+                    // Clear suggestions after one is added
+                    suggestionPanel.innerHTML = '<p class="text-gray-500">Suggestion added! Add more ideas or select a node.</p>';
+                     setTimeout(() => {
+                        if(suggestionPanel.firstChild && suggestionPanel.firstChild.textContent === 'Suggestion added! Add more ideas or select a node.') {
+                           suggestionPanel.innerHTML = '';
+                           if(helpText) helpText.style.display = 'block'; // Show initial help or a generic one
+                        }
+                    }, 3000);
+                }
+            };
+            container.appendChild(suggestionNodeEl);
+        });
+        suggestionPanel.appendChild(container);
+    }
+
+    function displayAiResponse(text, title) {
+        console.log(`Placeholder: Displaying AI response. Title: "${title}", Text: "${text}"`);
+        if (!suggestionPanel) {
+            console.error("suggestion-panel element not found in HTML.");
+            return;
+        }
+
+        const helpText = document.getElementById('initial-help-text');
+        if (helpText) helpText.style.display = 'none';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-response-bubble';
+
+        let content = '';
+        if (title) {
+            content += `<h3>${title}</h3>`;
+        }
+        content += `<p>${text.replace(/\n/g, '<br>')}</p>`; // Basic formatting
+        bubble.innerHTML = content;
+
+        // Prepend to show newest first, or append
+        suggestionPanel.insertBefore(bubble, suggestionPanel.firstChild);
+    }
+
     // --- Camera and Navigation Functions ---
 
     // Mock Gemini API Call Function (for development and testing)
+    // Note: The original script.js had a mock callGeminiAPI.
+    // The one in the problem description was more advanced. I'll assume the one from script.js for now.
+    // If this needs to be replaced by the one from the problem description, that's a separate step.
     async function callGeminiAPI(promptText, expectJson = false) {
         console.log(`Mock Gemini API Call with prompt: "${promptText}", Expect JSON: ${expectJson}`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
