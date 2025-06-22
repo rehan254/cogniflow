@@ -9,7 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit@0.1.8/source.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --ui-bg-dark: #0d0d0d;
@@ -20,7 +19,7 @@
         }
 
         body {
-            font-family: 'Cabin', sans-serif;
+            font-family: Arial, sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -43,19 +42,13 @@
         .node circle {
             stroke-width: 0;
             stroke: transparent;
-            transition: stroke 0.3s, stroke-width 0.3s, r 0.3s, filter 0.3s;
+            transition: stroke 0.3s, stroke-width 0.3s, filter 0.3s;
         }
         .node.selected circle {
             stroke-width: 4px;
         }
         .node.flashing circle {
             animation: flash 1s ease-out;
-        }
-
-        @keyframes flash {
-            0% { filter: drop-shadow(0 0 0px #ffffff); }
-            50% { filter: drop-shadow(0 0 12px #ffffff); }
-            100% { filter: drop-shadow(0 0 0px #ffffff); }
         }
 
         .node text {
@@ -179,6 +172,49 @@
             display: none;
             z-index: 1000;
         }
+
+        .expanded-node-container {
+            border-radius: 16px;
+            padding: 1rem;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .expanded-node-container h2 {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            cursor: text;
+        }
+        
+        .expanded-node-container textarea {
+            flex-grow: 1;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 0.5rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .notes-editor {
+            flex-grow: 1;
+            overflow-y: auto;
+            outline: none;
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+
+        @keyframes flash {
+            0% { filter: drop-shadow(0 0 0px #ffffff); }
+            50% { filter: drop-shadow(0 0 12px #ffffff); }
+            100% { filter: drop-shadow(0 0 0px #ffffff); }
+        }
     </style>
 </head>
 <body>
@@ -217,6 +253,7 @@
         let selectedNode = null;
         let isPrimedForChild = false;
         let historyStack = [];
+        let isAnimatingExit = false;
 
         // --- New Color & Theme Engine ---
         const dynastyPalettes = [
@@ -234,8 +271,8 @@
             ["#b5d95f", "#69aeff", "#8e7bef", "#6b4a8e"],
             // Palette 7 - Red to Green gradient
             ["#d44a4a", "#e6a84a", "#f5e65c", "#8eb55c"],
-            // Palette 8 - Green to Orange gradient
-            ["#8eb55c", "#f5ff65", "#ffc865", "#e58d65"]
+            // Palette 8 - Green to Muted Teal gradient
+            ["#8eb55c", "#f5ff65", "#008080", "#e58d65"]
         ];
         
         const paletteIndex = Math.floor(Math.random() * dynastyPalettes.length);
@@ -307,30 +344,10 @@
         
         const zoom = d3.zoom().scaleExtent([0.1, 2]).on("zoom", (event) => {
             masterGroup.attr("transform", event.transform);
-
-            const k = event.transform.k;
-            const screenFontSizeScale = d3.scaleLinear().domain([0.1, 2]).range([12, 22]).clamp(true);
-            
-            nodeGroup.selectAll(".node").each(function(d) {
-                // Apply reactive font sizing only to non-root nodes
-                if (d.depth > 0) {
-                    const textEl = d3.select(this).select("text");
-                    if (textEl.node()) {
-                        const targetScreenSize = screenFontSizeScale(k);
-                        // Calculate the raw font-size attribute needed to counteract the SVG transform
-                        const attributeFontSize = targetScreenSize / k;
-                        
-                        textEl.style("font-size", `${attributeFontSize}px`);
-
-                        // For 2nd-gen+ nodes, the text is positioned below, so we must update its 'dy'
-                        if (d.depth > 1) {
-                            textEl.attr('dy', d.radius + attributeFontSize * 0.8); // Adjust position based on new font size
-                        }
-                    }
-                }
-            });
         });
         svg.call(zoom);
+
+        d3.select(container).on('click', handleBackgroundClick);
 
         // --- Core Functions ---
         function updateGraph() {
@@ -349,6 +366,7 @@
             const nodeEnter = node.enter().append("g")
                 .attr("class", "node")
                 .on("click", handleNodeClick)
+                .on("dblclick", handleNodeDoubleClick)
                 .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
 
             nodeEnter.append("circle");
@@ -356,113 +374,152 @@
 
             const nodeUpdate = nodeEnter.merge(node);
             
-            nodeUpdate.select("text").text(d => d.name);
-            
             nodeUpdate.each(function(d) {
                 const el = d3.select(this);
                 const nodeColor = d.color;
 
-                // --- Start of new visual logic ---
-
                 // Clean up elements from other states
                 el.selectAll('text, foreignObject').remove();
 
-                if (d.depth === 0) {
-                    // Central Node: Larger and more prominent
-                    d.radius = 70;
-                    
-                    // --- Dynamic Font Size Calculation ---
-                    const maxFontSize = 36;
-                    const minFontSize = 12; // Increased min font size
-                    const padding = 10;
-                    const availableWidth = d.radius * 2 - (padding * 2);
-                    let fontSize = availableWidth / (d.name.length * 0.6);
-                    fontSize = Math.max(minFontSize, Math.min(fontSize, maxFontSize));
-                    // --- End Calculation ---
+                if (d.isExpanded) {
+                    el.raise();
+                    const foWidth = 300;
+                    const foHeight = 200;
+
+                    // Hide the original circle and text
+                    el.select('circle').transition().duration(300).attr('r', 0);
                     
                     const fo = el.append('foreignObject')
                         .attr('x', -d.radius)
                         .attr('y', -d.radius)
                         .attr('width', d.radius * 2)
                         .attr('height', d.radius * 2)
-                        .style('pointer-events', 'none');
-                    
-                    fo.append('xhtml:div')
+                        .style('opacity', 0)
+                        .style('pointer-events', 'all')
+                        .on('click', event => event.stopPropagation());
+
+                    fo.transition().duration(800).ease(d3.easeCubicInOut)
+                        .attr('x', -foWidth / 2)
+                        .attr('y', -foHeight / 2)
+                        .attr('width', foWidth)
+                        .attr('height', foHeight)
+                        .style('opacity', 1);
+
+                    const baseColor = d.color === '#FFFFFF' ? '#EAEAEA' : d.color;
+                    const bgColor = d3.color(baseColor);
+                    bgColor.opacity = 0.95;
+                    const textColor = isColorTooBright(baseColor) ? '#000000' : '#FFFFFF';
+                    const h2Color = isColorTooBright(baseColor) ? d3.color(baseColor).darker(1.5) : d3.color(baseColor).brighter(1.5);
+
+                    const div = fo.append('xhtml:div')
+                        .attr('class', 'expanded-node-container')
                         .style('width', '100%')
                         .style('height', '100%')
-                        .style('box-sizing', 'border-box')
-                        .style('padding', '10px')
-                        .style('display', 'flex')
-                        .style('justify-content', 'center')
-                        .style('align-items', 'center')
-                        .style('text-align', 'center')
-                        .style('font-size', `${fontSize}px`)
-                        .style('font-weight', '700')
-                        .style('color', '#000000')
-                        .style('word-wrap', 'break-word')
-                        .html(d.name.toUpperCase());
-
-                } else if (d.depth === 1) {
-                    // First Generation: Larger, bold text inside the node
-                    d.radius = 40;
-                    const fontSize = 15;
+                        .style('background-color', bgColor)
+                        .style('color', textColor);
                     
-                    el.append('text')
-                        .style('font-size', `${fontSize}px`)
-                        .style('font-weight', '700')
+                    div.append('xhtml:h2')
+                        .style('font-weight', 400)
+                        .style('color', h2Color)
+                        .attr('contenteditable', true)
                         .text(d.name)
-                        .style('fill', isColorTooBright(d.color) ? '#000000' : '#FFFFFF');
+                        .on('mousedown', event => event.stopPropagation())
+                        .on('keydown', function(event) {
+                            event.stopPropagation();
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                this.blur();
+                            }
+                        })
+                        .on('blur', function() {
+                            d.name = this.innerText;
+                            updateGraph();
+                        });
 
-                } else {
-                    // Second Generation & Beyond: Text below the node
-                    const baseRadius = 20; 
-                    const baseFontSize = 12;
-                    const decayFactor = Math.pow(0.85, d.depth - 2);
-
-                    d.radius = Math.max(8, baseRadius * decayFactor);
-                    const fontSize = Math.max(8, baseFontSize * decayFactor);
+                    const notesEditor = div.append('xhtml:div')
+                        .attr('class', 'notes-editor')
+                        .attr('contenteditable', true)
+                        .style('color', textColor)
+                        .on('mousedown', event => event.stopPropagation())
+                        .on('keydown', event => {
+                            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                                event.stopPropagation();
+                            }
+                        })
+                        .on('blur', function() {
+                             d.notes = this.innerHTML;
+                        });
                     
-                    el.append('text')
-                        .style('font-size', `${fontSize}px`)
-                        .attr('dy', d.radius + fontSize) 
-                        .text(d.name)
-                        .style('fill', '#FFFFFF');
-                }
-                // --- End of new visual logic ---
+                    notesEditor.html(d.notes || '');
 
-                const gradientId = `grad-${d.id}`;
-                defs.selectAll(`#${gradientId}`).remove();
-                
-                // For root node (white), create a subtle gradient
-                if (d.depth === 0) {
-                    defs.append("radialGradient")
-                        .attr("id", gradientId)
-                        .html(`
-                            <stop offset="0%" stop-color="#FFFFFF" />
-                            <stop offset="100%" stop-color="#EAEAEA" />
-                        `);
-                } else {
-                    // For colored nodes, ensure gradient doesn't get too bright
-                    const brighterColor = ensureTextVisible(d3.color(nodeColor).brighter(0.3).toString());
-                    const darkerColor = d3.color(nodeColor).darker(0.5).toString();
+                } else if (d.depth === 0) {
+                    d.radius = 70;
                     
-                    defs.append("linearGradient")
-                        .attr("id", gradientId)
-                        .attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%")
-                        .html(`
-                            <stop offset="0%" stop-color="${brighterColor}" />
-                            <stop offset="100%" stop-color="${darkerColor}" />
-                        `);
+                    const maxFontSize = 36;
+                    const minFontSize = 12;
+                    const padding = 10;
+                    const availableWidth = d.radius * 2 - (padding * 2);
+
+                    const text = el.append('text')
+                        .attr('dy', '.35em');
+                    
+                    let fontSize = Math.min(maxFontSize, availableWidth / (d.name.length * 0.6));
+                    fontSize = Math.max(minFontSize, fontSize);
+                    
+                    text.style('font-size', `${fontSize}px`)
+                        .style('letter-spacing', '-1px');
+                    text.text(d.name);
+
+                } else { // Handles d.depth > 0
+                    d.radius = d.depth === 1 ? 40 : 25;
+
+                    const text = el.append('text')
+                        .text(d.name);
+                    
+                    const baseSizePt = 24;
+                    const decreasePt = 6;
+                    const minSizePt = 9;
+                    
+                    const fontSizePt = Math.max(minSizePt, baseSizePt - ((d.depth - 1) * decreasePt));
+                    
+                    text.style('font-size', `${fontSizePt}pt`);
+
+                    if (d.depth === 1) {
+                        text.attr('dy', '.35em')
+                            .style('letter-spacing', '2px');
+                    } else {
+                        const fontSizePx = fontSizePt * 4/3;
+                        text.attr('dy', d.radius + fontSizePx * 0.7)
+                            .style('letter-spacing', 'normal');
+                    }
                 }
                 
-                el.select("circle")
-                  .attr("r", d.radius)
-                  .attr("fill", `url(#${gradientId})`);
+                const circle = el.select('circle')
+                    .attr('fill', nodeColor)
+                    .attr('stroke', isColorTooBright(nodeColor) ? d3.color(nodeColor).darker(1.5) : d3.color(nodeColor).brighter(1.5));
+
+                if (d.isClosing) {
+                    // Animate the circle shrinking in
+                    circle.attr('r', d.radius * 1.5).style('opacity', 0)
+                        .transition()
+                        .duration(300) // fast
+                        .ease(d3.easeCubicOut)
+                        .attr('r', d.radius)
+                        .style('opacity', 1);
+                    delete d.isClosing;
+                } else {
+                    // Set radius normally and ensure opacity is correct for non-animating nodes
+                    circle.attr('r', d.radius);
+                    if (!d.isExpanded) {
+                        circle.style('opacity', 1);
+                    }
+                }
+
+                if (!d.isExpanded) {
+                    el.select('text').style('fill', isColorTooBright(nodeColor) ? '#000000' : '#FFFFFF');
+                }
             });
             
-            nodeUpdate.selectAll(".node.selected circle").style("stroke", dynastyPalettes[paletteIndex][0]);
-            nodeUpdate.classed("selected", d => selectedNode && d.id === selectedNode.id);
-
             simulation.nodes(nodes);
             simulation.force("link").links(links);
             simulation.alpha(1).restart();
@@ -626,72 +683,104 @@
             updateGraph();
         }
 
-        // Refactored selectNode to only handle selection and UI, not state.
         function selectNode(d) {
-            if (!d) return;
             selectedNode = d;
-            summarizeBtn.style.display = 'inline-block';
-            elaborateBtn.style.display = 'inline-block';
-            nodeInput.focus();
             updateGraph();
+            
+            if (isPrimedForChild) {
+                nodeInput.placeholder = `Add child to "${d.name}" (Press Enter)...`;
+            } else {
+                nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${d.name}"...`;
+            }
         }
 
         function handleNodeClick(event, d) {
-            if (event) event.stopPropagation();
+            event.stopPropagation();
             selectNode(d);
-            // Clicking a node ALWAYS enters the primed state.
-            isPrimedForChild = true; 
-            nodeInput.placeholder = `Add child to "${d.name}" (Press Enter)...`;
+            nodeInput.focus();
+        }
+        
+        function handleNodeDoubleClick(event, d) {
+            if (event) event.stopPropagation();
+            
+            // Collapse any other expanded node
+            nodes.forEach(n => {
+                if (n.isExpanded && n.id !== d.id) {
+                    n.isExpanded = false;
+                }
+            });
+
+            // Toggle the current node's expanded state
+            d.isExpanded = !d.isExpanded;
+
+            // Pin the node in place when expanded
+            if(d.isExpanded) {
+                d.fx = d.x;
+                d.fy = d.y;
+            } else {
+                d.fx = null;
+                d.fy = null;
+            }
+
+            updateGraph();
+            simulation.alpha(1).restart();
+            centerOnNode(d);
         }
         
         nodeInput.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter' || !nodeInput.value.trim()) return;
             event.preventDefault();
+
+            saveToHistory();
+
+            // Collapse any expanded node before adding a new one
+            let needsUpdate = false;
+            nodes.forEach(n => {
+                if (n.isExpanded) {
+                    n.isExpanded = false;
+                    n.fx = null;
+                    n.fy = null;
+                    needsUpdate = true;
+                }
+            });
+
             const text = nodeInput.value.trim();
             let newNode;
 
             // First node creation
             if (!selectedNode) {
-                newNode = addNode(text);
-                if (newNode) {
-                    handleNodeClick(null, newNode); // This enters primed state
-                    nodeInput.value = '';
-                }
-                return;
+                newNode = addNode(text, null);
             }
-            
-            // PRIMED STATE
-            if (isPrimedForChild) {
-                // Both Enter and Shift+Enter create a child in primed state
-                newNode = addNode(text, selectedNode);
-                if (newNode) {
-                    selectNode(newNode);
-                    isPrimedForChild = false; // Switch to standard mode
-                    nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${newNode.name}"...`;
-                    nodeInput.value = '';
-                }
-            } 
-            // STANDARD MODE
+            // If a node is selected, handle primed vs. standard mode
             else {
-                let parentNode;
-                if (event.shiftKey) {
-                    // Shift+Enter = Add Child
-                    parentNode = selectedNode;
+                if (isPrimedForChild) {
+                    // In primed state, Enter always adds a child
+                    newNode = addNode(text, selectedNode);
+                    isPrimedForChild = false; // Exit primed state
                 } else {
-                    // Enter = Add Sibling
-                    const parentLink = links.find(l => l.target.id === selectedNode.id);
-                    parentNode = parentLink ? parentLink.source : null;
-                }
-                
-                if (parentNode) {
-                    newNode = addNode(text, parentNode);
-                    if (newNode) {
-                        selectNode(newNode);
-                        // Remain in standard mode
-                        nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${newNode.name}"...`;
-                        nodeInput.value = '';
+                    // In standard state, depends on Shift key
+                    let parentNode;
+                    if (event.shiftKey) {
+                        // Shift+Enter = Add Child
+                        parentNode = selectedNode;
+                    } else {
+                        // Enter = Add Sibling
+                        const parentLink = links.find(l => l.target.id === selectedNode.id);
+                        parentNode = parentLink ? parentLink.source : null;
+                    }
+                    if (parentNode) {
+                        newNode = addNode(text, parentNode);
                     }
                 }
+            }
+
+            if (newNode) {
+                isPrimedForChild = false; // Enter standard mode after any creation
+                selectNode(newNode);
+                nodeInput.value = '';
+                nodeInput.focus();
+            } else if (needsUpdate) {
+                updateGraph(); // Update if a node was collapsed but no new node was made
             }
         });
 
@@ -782,6 +871,103 @@
         applyTheme();
         nodeInput.focus(); // Set focus on the input field on load
         d3.timer(() => simulation.alpha(0.01));
+
+        svg.on('click', (event) => {
+            // Check if we clicked on the background, not a node
+            if (event.target === svg.node()) {
+                let needsUpdate = false;
+                nodes.forEach(n => {
+                    if (n.isExpanded) {
+                        n.isExpanded = false;
+                        n.fx = null; // Unpin
+                        n.fy = null;
+                        needsUpdate = true;
+                    }
+                });
+                if (needsUpdate) updateGraph();
+            }
+        });
+
+        nodeInput.addEventListener('focus', () => {
+            isPrimedForChild = false;
+        });
+
+        function saveToHistory() {
+            // TODO: In-depth history implementation for undo/redo
+        }
+
+        function handleBackgroundClick(event) {
+            if ((event.target !== container && event.target !== svg.node()) || isAnimatingExit) return;
+
+            const expandedNode = nodes.find(d => d.isExpanded);
+            if (expandedNode) {
+                isAnimatingExit = true;
+
+                const nodeElement = nodeGroup.selectAll('.node').filter(n => n === expandedNode);
+
+                if (nodeElement.empty() || nodeElement.select('foreignObject').empty()) {
+                    isAnimatingExit = false;
+                    expandedNode.isExpanded = false;
+                    expandedNode.fx = null;
+                    expandedNode.fy = null;
+                    updateGraph();
+                    simulation.alpha(1).restart();
+                    centerOnNode(expandedNode);
+                    return;
+                }
+
+                // Calculate the target radius based on node depth
+                const targetRadius = expandedNode.depth === 0 ? 70 : (expandedNode.depth === 1 ? 40 : 25);
+                
+                // First, make the circle visible again but still at radius 0
+                nodeElement.select('circle')
+                    .style('opacity', 1)
+                    .attr('r', 0);
+                
+                // Animate the foreignObject shrinking
+                nodeElement.select('foreignObject')
+                    .transition()
+                    .duration(400)
+                    .ease(d3.easeCubicOut)
+                    .attr('x', -targetRadius)
+                    .attr('y', -targetRadius)
+                    .attr('width', targetRadius * 2)
+                    .attr('height', targetRadius * 2)
+                    .style('opacity', 0)
+                    .on('end', () => {
+                        expandedNode.isExpanded = false;
+                        expandedNode.isClosing = true;
+                        expandedNode.fx = null;
+                        expandedNode.fy = null;
+                        updateGraph();
+                        simulation.alpha(1).restart();
+                        centerOnNode(expandedNode);
+                        isAnimatingExit = false;
+                    });
+            }
+        }
+
+        function centerOnNode(d) {
+            const foWidth = 300;
+            const foHeight = 200;
+
+            const width = svg.node().clientWidth;
+            const height = svg.node().clientHeight;
+            
+            // For expanded nodes, calculate scale to make it fill 1/3 of the screen
+            const scale = d.isExpanded ? 
+                Math.min(width / (foWidth * 3), height / (foHeight * 3)) : 
+                1.0; // Default scale when not expanded
+
+            const transform = d3.zoomIdentity
+                .translate(width / 2, height / 2)
+                .scale(scale)
+                .translate(-d.x, -d.y);
+
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, transform);
+        }
     </script>
 </body>
 </html>
