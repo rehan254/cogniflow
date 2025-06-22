@@ -3,29 +3,785 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CogniFlow</title>
-    <link rel="stylesheet" href="style.css">
+    <title>CogniFlow - The LLM-Powered Idea Synthesizer</title>
+    <link rel="icon" href="data:,">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit@0.1.8/source.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ui-bg-dark: #0d0d0d;
+            --ui-input-bg-dark: #2c2c2c;
+            --ui-border-dark: #444444;
+            --ui-text-dark: #e0e0e0;
+            --ui-focus-dark: #e58d47;
+        }
+
+        body {
+            font-family: 'Cabin', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 0.8s;
+        }
+
+        #mindmap-container { flex-grow: 1; position: relative; background: transparent; }
+        svg { display: block; width: 100%; height: 100%; }
+        
+        .link {
+            fill: none;
+            stroke-opacity: 0.6;
+            stroke-width: 2.5px;
+            stroke-linecap: round;
+        }
+
+        .node { cursor: pointer; }
+        .node circle {
+            stroke-width: 0;
+            stroke: transparent;
+            transition: stroke 0.3s, stroke-width 0.3s, r 0.3s, filter 0.3s;
+        }
+        .node.selected circle {
+            stroke-width: 4px;
+        }
+        .node.flashing circle {
+            animation: flash 1s ease-out;
+        }
+
+        @keyframes flash {
+            0% { filter: drop-shadow(0 0 0px #ffffff); }
+            50% { filter: drop-shadow(0 0 12px #ffffff); }
+            100% { filter: drop-shadow(0 0 0px #ffffff); }
+        }
+
+        .node text {
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: central;
+            font-weight: 500;
+            transition: fill 0.8s;
+            fill: #FFFFFF;
+        }
+        
+        #bottom-panel {
+            height: 20vh;
+            min-height: 120px;
+            resize: vertical;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border-top-width: 1px;
+            background-color: var(--ui-bg-dark);
+            border-color: var(--ui-border-dark);
+            color: var(--ui-text-dark);
+        }
+
+        #suggestion-panel {
+            flex-grow: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        #input-container {
+            padding: 1rem;
+            border-top-width: 1px;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            border-color: var(--ui-border-dark);
+        }
+
+        #node-input {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--ui-border-dark);
+            outline: none;
+            background-color: var(--ui-input-bg-dark);
+            color: var(--ui-text-dark);
+        }
+        #node-input:focus {
+            border-color: var(--ui-focus-dark);
+        }
+
+        .ai-button {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--ui-border-dark);
+            background-color: var(--ui-input-bg-dark);
+            color: var(--ui-text-dark);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.2s, border-color 0.2s;
+            display: none;
+        }
+        .ai-button:hover {
+            border-color: var(--ui-focus-dark);
+        }
+        
+        .suggestion-container {
+            align-self: flex-start;
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px dashed var(--ui-border-dark);
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .suggestion-node {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .suggestion-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .suggestion-node .plus-icon {
+            font-weight: bold;
+        }
+        
+         .ai-response-bubble {
+            align-self: flex-start;
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            background-color: var(--ui-input-bg-dark);
+            border: 1px solid var(--ui-border-dark);
+        }
+        .ai-response-bubble h3 {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+            color: var(--ui-focus-dark);
+        }
+
+        .loading-indicator {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
-    <div id="controls">
-        <button id="export-pdf-button">Export as PDF</button>
+
+    <div id="mindmap-container">
+        <svg id="mindmap-svg"></svg>
+        <div id="loading-indicator" class="loading-indicator">CogniFlow is thinking...</div>
     </div>
-    <div id="canvas-container">
-        <svg id="mindmap-canvas"></svg>
+    
+    <div id="bottom-panel" id="bottom-panel">
+        <div id="suggestion-panel">
+            <div id="initial-help-text" class="text-center text-gray-500">
+                Enter your central idea to begin.
+            </div>
+        </div>
+        <div id="input-container">
+            <input type="text" id="node-input" placeholder="Enter your central idea...">
+            <button id="summarize-btn" class="ai-button">✨ Summarize</button>
+            <button id="elaborate-btn" class="ai-button">✨ Elaborate</button>
+        </div>
     </div>
 
-    <!-- PDF Export Libraries (Conceptual - actual versions/choices may vary) -->
-    <!-- jsPDF -->
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> -->
+    <script type="module">
+        // --- Setup ---
+        const svg = d3.select("#mindmap-svg");
+        const suggestionPanel = document.getElementById('suggestion-panel');
+        const nodeInput = document.getElementById('node-input');
+        const summarizeBtn = document.getElementById('summarize-btn');
+        const elaborateBtn = document.getElementById('elaborate-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const container = document.getElementById('mindmap-container');
+        
+        let nodes = [];
+        let links = [];
+        let nextId = 0;
+        let selectedNode = null;
+        let isPrimedForChild = false;
+        let historyStack = [];
 
-    <!-- If using svg2pdf.js (alternative to svg-to-pdfkit for direct jsPDF integration) -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.1/dist/svg2pdf.umd.min.js"></script> -->
+        // --- New Color & Theme Engine ---
+        const dynastyPalettes = [
+            // Palette 1 - Pink to Blue gradient
+            ["#e58d8d", "#b5738c", "#7a6b9f", "#4e6b9f"],
+            // Palette 2 - Dark Red to Yellow gradient  
+            ["#5d1a3a", "#8e3a59", "#d44a5c", "#f5e65c"],
+            // Palette 3 - Orange to Purple gradient
+            ["#f0a84a", "#d6704a", "#d44a72", "#8e3a8e"],
+            // Palette 4 - Dark Teal to Light gradient
+            ["#2f4b4b", "#4a7b7b", "#8eb5b5", "#e2f8f5"],
+            // Palette 5 - Navy to Yellow gradient
+            ["#2d3e5d", "#4a6b4a", "#8eb55c", "#f5e65c"],
+            // Palette 6 - Light Green to Purple gradient
+            ["#b5d95f", "#69aeff", "#8e7bef", "#6b4a8e"],
+            // Palette 7 - Red to Green gradient
+            ["#d44a4a", "#e6a84a", "#f5e65c", "#8eb55c"],
+            // Palette 8 - Green to Orange gradient
+            ["#8eb55c", "#f5ff65", "#ffc865", "#e58d65"]
+        ];
+        
+        const paletteIndex = Math.floor(Math.random() * dynastyPalettes.length);
+        
+        // Track which palette each first-gen node gets
+        let firstGenPaletteAssignment = new Map();
+        
+        const defs = svg.append("defs");
 
-    <!-- If attempting SVGtoPDF with PDFKit (more complex setup) -->
-    <!-- <script src="https://unpkg.com/pdfkit@0.13.0/js/pdfkit.standalone.js"></script> -->
-    <!-- <script src="https://unpkg.com/svg-to-pdfkit@0.1.8/source.js"></script> -->
+        function applyTheme() {
+            // Set the focus color for UI elements
+            document.querySelector(':root').style.setProperty('--ui-focus-dark', dynastyPalettes[paletteIndex][0]);
+            
+            // Create a very dark, desaturated background gradient
+            const paletteColor = dynastyPalettes[paletteIndex][2] || '#888888';
+            const baseColor = d3.hsl(paletteColor);
+            baseColor.s *= 0.3; // Reduce saturation significantly
+            
+            const centerColor = d3.color(baseColor).darker(4).toString();
+            const edgeColor = d3.color(baseColor).darker(6).toString();
 
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="script.js"></script>
+            document.body.style.background = `radial-gradient(ellipse at center, ${centerColor} 0%, ${edgeColor} 100%)`;
+        }
+        
+        // Helper function to check if a color is too bright for white text
+        function isColorTooBright(color) {
+            const rgb = d3.rgb(color);
+            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+            return luminance > 0.7; // Threshold for white text visibility
+        }
+        
+        // Helper function to darken a color if it's too bright
+        function ensureTextVisible(color) {
+            if (isColorTooBright(color)) {
+                return d3.color(color).darker(1.5).toString();
+            }
+            return color;
+        }
+
+        function outwardForce(alpha) {
+            const rootNode = nodes[0];
+            if (!rootNode) return;
+
+            const strength = 0.04; 
+
+            nodes.forEach(node => {
+                if (node === rootNode) return;
+
+                const dx = node.x - rootNode.x;
+                const dy = node.y - rootNode.y;
+                const distance = Math.hypot(dx, dy) || 1;
+                
+                const force = strength * alpha;
+                
+                node.vx += (dx / distance) * force;
+                node.vy += (dy / distance) * force;
+            });
+        }
+
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.targetDistance).strength(0.7))
+            .force("charge", d3.forceManyBody().strength(-400))
+            .force("collide", d3.forceCollide().radius(d => d.radius + 20).strength(1))
+            .force("outward", outwardForce);
+
+        const masterGroup = svg.append("g");
+        let linkGroup = masterGroup.append("g");
+        let nodeGroup = masterGroup.append("g");
+        
+        const zoom = d3.zoom().scaleExtent([0.1, 2]).on("zoom", (event) => {
+            masterGroup.attr("transform", event.transform);
+
+            const k = event.transform.k;
+            const screenFontSizeScale = d3.scaleLinear().domain([0.1, 2]).range([12, 22]).clamp(true);
+            
+            nodeGroup.selectAll(".node").each(function(d) {
+                // Apply reactive font sizing only to non-root nodes
+                if (d.depth > 0) {
+                    const textEl = d3.select(this).select("text");
+                    if (textEl.node()) {
+                        const targetScreenSize = screenFontSizeScale(k);
+                        // Calculate the raw font-size attribute needed to counteract the SVG transform
+                        const attributeFontSize = targetScreenSize / k;
+                        
+                        textEl.style("font-size", `${attributeFontSize}px`);
+
+                        // For 2nd-gen+ nodes, the text is positioned below, so we must update its 'dy'
+                        if (d.depth > 1) {
+                            textEl.attr('dy', d.radius + attributeFontSize * 0.8); // Adjust position based on new font size
+                        }
+                    }
+                }
+            });
+        });
+        svg.call(zoom);
+
+        // --- Core Functions ---
+        function updateGraph() {
+            linkGroup.selectAll(".link")
+                .data(links, d => `${d.source.id}-${d.target.id}`)
+                .join("path")
+                .attr("class", "link")
+                .attr("stroke", d => d.source.color) 
+                .style("stroke-opacity", 0.5);
+
+            const node = nodeGroup.selectAll(".node")
+                .data(nodes, d => d.id);
+            
+            node.exit().transition().duration(750).attr("transform", "scale(0)").remove();
+            
+            const nodeEnter = node.enter().append("g")
+                .attr("class", "node")
+                .on("click", handleNodeClick)
+                .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+            nodeEnter.append("circle");
+            nodeEnter.append("text");
+
+            const nodeUpdate = nodeEnter.merge(node);
+            
+            nodeUpdate.select("text").text(d => d.name);
+            
+            nodeUpdate.each(function(d) {
+                const el = d3.select(this);
+                const nodeColor = d.color;
+
+                // --- Start of new visual logic ---
+
+                // Clean up elements from other states
+                el.selectAll('text, foreignObject').remove();
+
+                if (d.depth === 0) {
+                    // Central Node: Larger and more prominent
+                    d.radius = 70;
+                    
+                    // --- Dynamic Font Size Calculation ---
+                    const maxFontSize = 36;
+                    const minFontSize = 12; // Increased min font size
+                    const padding = 10;
+                    const availableWidth = d.radius * 2 - (padding * 2);
+                    let fontSize = availableWidth / (d.name.length * 0.6);
+                    fontSize = Math.max(minFontSize, Math.min(fontSize, maxFontSize));
+                    // --- End Calculation ---
+                    
+                    const fo = el.append('foreignObject')
+                        .attr('x', -d.radius)
+                        .attr('y', -d.radius)
+                        .attr('width', d.radius * 2)
+                        .attr('height', d.radius * 2)
+                        .style('pointer-events', 'none');
+                    
+                    fo.append('xhtml:div')
+                        .style('width', '100%')
+                        .style('height', '100%')
+                        .style('box-sizing', 'border-box')
+                        .style('padding', '10px')
+                        .style('display', 'flex')
+                        .style('justify-content', 'center')
+                        .style('align-items', 'center')
+                        .style('text-align', 'center')
+                        .style('font-size', `${fontSize}px`)
+                        .style('font-weight', '700')
+                        .style('color', '#000000')
+                        .style('word-wrap', 'break-word')
+                        .html(d.name.toUpperCase());
+
+                } else if (d.depth === 1) {
+                    // First Generation: Larger, bold text inside the node
+                    d.radius = 40;
+                    const fontSize = 15;
+                    
+                    el.append('text')
+                        .style('font-size', `${fontSize}px`)
+                        .style('font-weight', '700')
+                        .text(d.name)
+                        .style('fill', isColorTooBright(d.color) ? '#000000' : '#FFFFFF');
+
+                } else {
+                    // Second Generation & Beyond: Text below the node
+                    const baseRadius = 20; 
+                    const baseFontSize = 12;
+                    const decayFactor = Math.pow(0.85, d.depth - 2);
+
+                    d.radius = Math.max(8, baseRadius * decayFactor);
+                    const fontSize = Math.max(8, baseFontSize * decayFactor);
+                    
+                    el.append('text')
+                        .style('font-size', `${fontSize}px`)
+                        .attr('dy', d.radius + fontSize) 
+                        .text(d.name)
+                        .style('fill', '#FFFFFF');
+                }
+                // --- End of new visual logic ---
+
+                const gradientId = `grad-${d.id}`;
+                defs.selectAll(`#${gradientId}`).remove();
+                
+                // For root node (white), create a subtle gradient
+                if (d.depth === 0) {
+                    defs.append("radialGradient")
+                        .attr("id", gradientId)
+                        .html(`
+                            <stop offset="0%" stop-color="#FFFFFF" />
+                            <stop offset="100%" stop-color="#EAEAEA" />
+                        `);
+                } else {
+                    // For colored nodes, ensure gradient doesn't get too bright
+                    const brighterColor = ensureTextVisible(d3.color(nodeColor).brighter(0.3).toString());
+                    const darkerColor = d3.color(nodeColor).darker(0.5).toString();
+                    
+                    defs.append("linearGradient")
+                        .attr("id", gradientId)
+                        .attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%")
+                        .html(`
+                            <stop offset="0%" stop-color="${brighterColor}" />
+                            <stop offset="100%" stop-color="${darkerColor}" />
+                        `);
+                }
+                
+                el.select("circle")
+                  .attr("r", d.radius)
+                  .attr("fill", `url(#${gradientId})`);
+            });
+            
+            nodeUpdate.selectAll(".node.selected circle").style("stroke", dynastyPalettes[paletteIndex][0]);
+            nodeUpdate.classed("selected", d => selectedNode && d.id === selectedNode.id);
+
+            simulation.nodes(nodes);
+            simulation.force("link").links(links);
+            simulation.alpha(1).restart();
+            
+            optimizeView();
+        }
+
+        function generateBranchPath(d) {
+            const path = d3.path();
+            path.moveTo(d.source.x, d.source.y);
+            const midX = d.source.x + (d.target.x - d.source.x) * 0.5 - (d.target.y - d.source.y) * d.cp_dx_factor;
+            const midY = d.source.y + (d.target.y - d.source.y) * 0.5 + (d.target.x - d.source.x) * d.cp_dy_factor;
+            path.quadraticCurveTo(midX, midY, d.target.x, d.target.y);
+            return path.toString();
+        }
+        
+        simulation.on("tick", () => {
+            linkGroup.selectAll(".link").attr("d", generateBranchPath);
+            nodeGroup.selectAll(".node").attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+        
+        function optimizeView() {
+            if (nodes.length === 0) return;
+            const padding = 150;
+            const xExtent = d3.extent(nodes, d => d.x);
+            const yExtent = d3.extent(nodes, d => d.y);
+            if (xExtent[0] === undefined) return;
+            const [x0, x1] = xExtent;
+            const [y0, y1] = yExtent;
+            const fullWidth = x1 - x0;
+            const fullHeight = y1 - y0;
+            if (fullWidth === 0 || fullHeight === 0) return;
+            const midX = x0 + fullWidth / 2;
+            const midY = y0 + fullHeight / 2;
+            const scale = Math.min(1.2, 0.9 / Math.max((fullWidth + padding) / container.clientWidth, (fullHeight + padding) / container.clientHeight));
+            const transform = d3.zoomIdentity.translate(container.clientWidth / 2 - scale * midX, container.clientHeight / 2 - scale * midY).scale(scale);
+            svg.transition().duration(900).call(zoom.transform, transform);
+        }
+
+        // --- Interaction Logic ---
+        function addNode(name, parent = null) {
+            if (!name.trim()) return null;
+            let newNode;
+            if (nodes.length === 0) {
+                // Root node gets white color
+                const color = "#FFFFFF";
+                newNode = {id: nextId++, name, depth: 0, children:[], x: container.clientWidth / 2, y: container.clientHeight / 2, fx: container.clientWidth / 2, fy: container.clientHeight / 2, color: color };
+                nodes.push(newNode);
+            } else {
+                if(!parent) return null;
+                const depth = parent.depth + 1;
+                const targetDistance = 90 * Math.pow(1.1, depth);
+                
+                // Ensure parent.children array exists before using it.
+                if (!parent.children) parent.children = [];
+
+                let finalColor;
+                if (depth === 1) {
+                    // First generation: each child gets a unique palette
+                    const availablePalettes = dynastyPalettes.filter((_, idx) => {
+                        // Check if this palette is already used by a sibling
+                        return !Array.from(firstGenPaletteAssignment.values()).includes(idx);
+                    });
+                    
+                    // If all palettes are used, cycle back
+                    const paletteIdx = availablePalettes.length > 0 
+                        ? dynastyPalettes.indexOf(availablePalettes[0])
+                        : parent.children.length % dynastyPalettes.length;
+                    
+                    firstGenPaletteAssignment.set(nextId, paletteIdx);
+                    // Use the first (darkest) color from the palette
+                    finalColor = ensureTextVisible(dynastyPalettes[paletteIdx][0]);
+                } else {
+                    // Deeper generations: inherit from their dynasty's palette
+                    let firstGenAncestor = parent;
+                    while (firstGenAncestor.depth > 1) {
+                        const parentLink = links.find(l => l.target.id === firstGenAncestor.id);
+                        firstGenAncestor = parentLink ? parentLink.source : null;
+                    }
+                    
+                    const dynastyPaletteIdx = firstGenPaletteAssignment.get(firstGenAncestor.id);
+                    if (dynastyPaletteIdx !== undefined) {
+                        const palette = dynastyPalettes[dynastyPaletteIdx];
+                        // Use deeper colors in the palette for deeper generations
+                        const colorIndex = Math.min(depth - 2, palette.length - 1);
+                        finalColor = ensureTextVisible(palette[colorIndex]);
+                    } else {
+                        // Fallback: just brighten parent color
+                        finalColor = ensureTextVisible(d3.color(parent.color).brighter(0.3).toString());
+                    }
+                }
+
+                const rootNode = nodes[0];
+                const parentAngle = Math.atan2(parent.y - rootNode.y, parent.x - rootNode.x);
+                const coneWidth = (160 * Math.PI) / 180;
+                const coneStart = parentAngle - coneWidth / 2;
+                const siblingAngles = (parent.children || []).map(child => Math.atan2(child.y - parent.y, child.x - parent.x)).sort((a,b) => a - b);
+                let bestAngle = parentAngle; 
+
+                if (siblingAngles.length > 0) {
+                    let maxGap = 0;
+                    let angleAtMaxGap = -1;
+                    let normalizedSiblings = siblingAngles.map(a => {
+                        let norm = a - coneStart;
+                        while(norm < 0) norm += 2 * Math.PI;
+                        return norm % (2 * Math.PI);
+                    }).filter(a => a <= coneWidth + 0.001).sort((a,b)=>a-b);
+                    if (normalizedSiblings.length === 0) {
+                        bestAngle = parentAngle;
+                    } else {
+                        maxGap = normalizedSiblings[0];
+                        angleAtMaxGap = coneStart + maxGap / 2;
+                        for(let i=0; i < normalizedSiblings.length; i++){
+                            const nextSiblingAngle = i === normalizedSiblings.length - 1 ? coneWidth : normalizedSiblings[i+1];
+                            let gap = nextSiblingAngle - normalizedSiblings[i];
+                            if (gap > maxGap) {
+                                maxGap = gap;
+                                angleAtMaxGap = coneStart + normalizedSiblings[i] + gap / 2;
+                            }
+                        }
+                        bestAngle = angleAtMaxGap;
+                    }
+                }
+                
+                const initialPlacementRadius = 20;
+                const initialX = parent.x + initialPlacementRadius * Math.cos(bestAngle);
+                const initialY = parent.y + initialPlacementRadius * Math.sin(bestAngle);
+
+                newNode = {id: nextId++, name, depth, children: [], x: initialX, y: initialY, color: finalColor };
+                nodes.push(newNode);
+
+                links.push({ 
+                    source: parent, target: newNode, 
+                    targetDistance: targetDistance,
+                    cp_dx_factor: (Math.random() - 0.5) * 0.4, cp_dy_factor: (Math.random() - 0.5) * 0.4
+                });
+                if(!parent.children) parent.children = [];
+                parent.children.push(newNode);
+            }
+            historyStack.push(newNode);
+            updateGraph();
+            triggerProactiveSuggestions(newNode);
+            return newNode;
+        }
+
+        function removeNode(nodeToRemove) {
+            if (!nodeToRemove) return;
+            const nodesToDelete = new Set([nodeToRemove.id]);
+            const findDescendants = (nodeId) => links.filter(l => l.source.id === nodeId).forEach(l => {
+                nodesToDelete.add(l.target.id);
+                findDescendants(l.target.id);
+            });
+            findDescendants(nodeToRemove.id);
+            nodes = nodes.filter(n => !nodesToDelete.has(n.id));
+            links = links.filter(l => !nodesToDelete.has(l.source.id) && !nodesToDelete.has(l.target.id));
+            if (selectedNode && nodesToDelete.has(selectedNode.id)) {
+                selectedNode = null;
+                summarizeBtn.style.display = 'none';
+                elaborateBtn.style.display = 'none';
+            }
+            updateGraph();
+        }
+
+        // Refactored selectNode to only handle selection and UI, not state.
+        function selectNode(d) {
+            if (!d) return;
+            selectedNode = d;
+            summarizeBtn.style.display = 'inline-block';
+            elaborateBtn.style.display = 'inline-block';
+            nodeInput.focus();
+            updateGraph();
+        }
+
+        function handleNodeClick(event, d) {
+            if (event) event.stopPropagation();
+            selectNode(d);
+            // Clicking a node ALWAYS enters the primed state.
+            isPrimedForChild = true; 
+            nodeInput.placeholder = `Add child to "${d.name}" (Press Enter)...`;
+        }
+        
+        nodeInput.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || !nodeInput.value.trim()) return;
+            event.preventDefault();
+            const text = nodeInput.value.trim();
+            let newNode;
+
+            // First node creation
+            if (!selectedNode) {
+                newNode = addNode(text);
+                if (newNode) {
+                    handleNodeClick(null, newNode); // This enters primed state
+                    nodeInput.value = '';
+                }
+                return;
+            }
+            
+            // PRIMED STATE
+            if (isPrimedForChild) {
+                // Both Enter and Shift+Enter create a child in primed state
+                newNode = addNode(text, selectedNode);
+                if (newNode) {
+                    selectNode(newNode);
+                    isPrimedForChild = false; // Switch to standard mode
+                    nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${newNode.name}"...`;
+                    nodeInput.value = '';
+                }
+            } 
+            // STANDARD MODE
+            else {
+                let parentNode;
+                if (event.shiftKey) {
+                    // Shift+Enter = Add Child
+                    parentNode = selectedNode;
+                } else {
+                    // Enter = Add Sibling
+                    const parentLink = links.find(l => l.target.id === selectedNode.id);
+                    parentNode = parentLink ? parentLink.source : null;
+                }
+                
+                if (parentNode) {
+                    newNode = addNode(text, parentNode);
+                    if (newNode) {
+                        selectNode(newNode);
+                        // Remain in standard mode
+                        nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${newNode.name}"...`;
+                        nodeInput.value = '';
+                    }
+                }
+            }
+        });
+
+        d3.select("body").on("keydown", (event) => {
+            if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
+                event.preventDefault();
+                const lastNodeAdded = historyStack.pop();
+                if (lastNodeAdded) {
+                    const nodeToRemove = nodes.find(n => n.id === lastNodeAdded.id);
+                    if(nodeToRemove) removeNode(nodeToRemove);
+                }
+                return; 
+            }
+            if(document.activeElement === nodeInput) return;
+            if(selectedNode && (event.key === 'Delete' || event.key === 'Backspace')){
+                event.preventDefault();
+                removeNode(selectedNode);
+            }
+        });
+        
+        // --- LLM and Dragging ---
+        async function triggerProactiveSuggestions(newNode) { /* ... same as before ... */ }
+        async function callProactiveGemini(context, latestEntry) { /* ... same as before ... */ }
+        summarizeBtn.addEventListener('click', async () => { /* ... same as before ... */ });
+        elaborateBtn.addEventListener('click', async () => { /* ... same as before ... */ });
+        function flashNode(nodeId) { /* ... same as before ... */ }
+        function displayAiSuggestions(suggestions) { /* ... same as before ... */ }
+        function displayAiResponse(text, title) { /* ... same as before ... */ }
+        
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        function dragged(event, d) {
+            const parentLink = links.find(l => l.target.id === d.id);
+            if (parentLink) {
+                const parent = parentLink.source;
+                const maxDragDistance = parentLink.targetDistance * 1.5; // Can drag 50% further than resting state
+                const currentDistance = Math.hypot(event.x - parent.x, event.y - parent.y);
+                
+                if (currentDistance > maxDragDistance) {
+                    // If too far, clamp position to the max radius
+                    const angle = Math.atan2(event.y - parent.y, event.x - parent.x);
+                    d.fx = parent.x + maxDragDistance * Math.cos(angle);
+                    d.fy = parent.y + maxDragDistance * Math.sin(angle);
+                } else {
+                    // Otherwise, drag freely
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+            } else { // For the root node, which has no parent link
+                 d.fx = event.x;
+                 d.fy = event.y;
+            }
+        }
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            if(d.depth !== 0) { 
+                d.fx = null;
+                d.fy = null;
+            }
+            
+            // Find links where the dragged node is either a source or a target
+            const connectedLinks = links.filter(l => l.source.id === d.id || l.target.id === d.id);
+            
+            connectedLinks.forEach(link => {
+                const postDragDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
+                const originalDistance = link.targetDistance;
+                const changeInDist = postDragDistance - originalDistance;
+
+                // The new resting distance will be the original distance plus only 20% of the change.
+                // This makes it spring back much more, feeling less stretchy.
+                const newTargetDistance = originalDistance + (changeInDist * 0.2);
+                
+                link.targetDistance = Math.max(40, newTargetDistance); // Ensure a minimum distance
+            });
+
+            if (connectedLinks.length > 0) {
+                // The simulation needs to be told to use the new distances
+                simulation.force("link").distance(l => l.targetDistance);
+                simulation.alpha(0.5).restart();
+            }
+        }
+        
+        // --- Initial State ---
+        window.addEventListener('resize', optimizeView);
+        applyTheme();
+        nodeInput.focus(); // Set focus on the input field on load
+        d3.timer(() => simulation.alpha(0.01));
+    </script>
 </body>
 </html>

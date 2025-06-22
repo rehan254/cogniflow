@@ -445,81 +445,75 @@
             return newNode;
         }
 
-        function removeNode(nodeToRemove) {
-            if (!nodeToRemove) return;
+function removeNode(nodeToRemove) {
+    if (!nodeToRemove) {
+        console.log("removeNode: No node to remove.");
+        return;
+    }
 
-            // 1. Recursively find all descendant nodes of nodeToRemove
-            const descendants = [];
-            const findDescendants = (node) => {
-                if (!node.children) return;
-                node.children.forEach(childId => { // Assuming children are stored as IDs or direct references
-                    // If children are stored as full objects directly:
-                    // const childNode = child;
-                    // If children are IDs that need to be looked up in the main 'nodes' array:
-                    const childNode = nodes.find(n => n.id === childId.id); // or childId directly if it's just the ID
-                    if (childNode) {
-                        descendants.push(childNode);
-                        findDescendants(childNode);
-                    }
-                });
-            };
+    console.log("removeNode: Attempting to remove node:", nodeToRemove.name, "(ID:", nodeToRemove.id, ")");
+    console.log("removeNode: Current nodes count:", nodes.length);
+    console.log("removeNode: Current links count:", links.length);
+    console.log("removeNode: Selected node before removal:", selectedNode ? selectedNode.name : "None");
 
-            // Correction: The `children` property in `addNode` stores full node objects, not IDs.
-            // So, the recursive function should operate on these directly.
-            const findDescendantsRecursive = (node) => {
-                (node.children || []).forEach(childNode => {
-                    descendants.push(childNode);
-                    findDescendantsRecursive(childNode);
-                });
-            };
-            findDescendantsRecursive(nodeToRemove);
+    // 1. Recursively find all descendant nodes of nodeToRemove
+    const nodesToDelete = new Set();
+    const findDescendantsAndSelf = (node) => {
+        if (!node) return;
+        nodesToDelete.add(node.id);
+        (node.children || []).forEach(childNode => {
+            findDescendantsAndSelf(childNode);
+        });
+    };
+    findDescendantsAndSelf(nodeToRemove);
 
-            // 2. Create a list of all nodes to be deleted
-            const nodesToDelete = [nodeToRemove, ...descendants];
-            const nodesToDeleteIds = new Set(nodesToDelete.map(n => n.id));
+    console.log("removeNode: IDs to delete:", Array.from(nodesToDelete));
 
-            // 3. Filter the main `nodes` array
-            nodes = nodes.filter(n => !nodesToDeleteIds.has(n.id));
+    // 2. Filter the main `nodes` array
+    nodes = nodes.filter(n => !nodesToDelete.has(n.id));
+    console.log("removeNode: Nodes after filtering:", nodes.length);
 
-            // 4. Filter the main `links` array
-            links = links.filter(l => !nodesToDeleteIds.has(l.source.id) && !nodesToDeleteIds.has(l.target.id));
+    // 3. Filter the main `links` array
+    links = links.filter(l => !nodesToDelete.has(l.source.id) && !nodesToDelete.has(l.target.id));
+    console.log("removeNode: Links after filtering:", links.length);
 
-            // 5. If selectedNode is among the nodes being deleted, set selectedNode = null
-            if (selectedNode && nodesToDeleteIds.has(selectedNode.id)) {
-                selectedNode = null;
-                // Also hide AI buttons and reset input placeholder if the selected node was deleted
-                summarizeBtn.style.display = 'none';
-                elaborateBtn.style.display = 'none';
-                if (nodes.length > 0) {
-                     nodeInput.placeholder = "Select a node or start a new idea...";
-                } else {
-                     nodeInput.placeholder = "Enter your central idea...";
-                }
-            }
-
-            // Remove deleted nodes from parent's children array
-            if (nodes.length > 0 && nodeToRemove) {
-                const parentLink = links.find(l => l.target.id === nodeToRemove.id); // This link is already removed from `links` array.
-                                                                                // We need to find parent from original structure if possible or check all nodes.
-                 nodes.forEach(potentialParent => {
-                    if (potentialParent.children) {
-                        potentialParent.children = potentialParent.children.filter(child => child.id !== nodeToRemove.id);
-                    }
-                });
-            }
-
-
-            // 6. Update the simulation
-            simulation.nodes(nodes);
-            simulation.force("link").links(links);
-            // simulation.alpha(0.3).restart(); // Gently restart simulation
-
-            // 7. Call updateGraph() to refresh the visualization
-            updateGraph();
-
-            // Optional: Clear any suggestions related to the deleted node
-            suggestionPanel.innerHTML = '<div id="initial-help-text" class="text-center text-gray-500">Node removed. Select a node or start a new idea.</div>';
+    // 4. If selectedNode is among the nodes being deleted, set selectedNode = null
+    if (selectedNode && nodesToDelete.has(selectedNode.id)) {
+        selectedNode = null;
+        console.log("removeNode: Selected node was deleted, setting selectedNode to null.");
+        summarizeBtn.style.display = 'none';
+        elaborateBtn.style.display = 'none';
+        if (nodes.length > 0) {
+            nodeInput.placeholder = "Select a node or start a new idea...";
+        } else {
+            nodeInput.placeholder = "Enter your central idea...";
         }
+    }
+
+    // 5. Remove deleted nodes from parent's children array
+    // This needs to be done carefully. Iterate through the *remaining* nodes
+    // and update their children arrays.
+    nodes.forEach(potentialParent => {
+        if (potentialParent.children) {
+            potentialParent.children = potentialParent.children.filter(child => !nodesToDelete.has(child.id));
+        }
+    });
+    console.log("removeNode: Parent children arrays updated.");
+
+    // 6. Update the simulation
+    simulation.nodes(nodes);
+    simulation.force("link").links(links);
+    simulation.alpha(1).restart(); // Restart simulation with new data
+    console.log("removeNode: Simulation restarted.");
+
+    // 7. Call updateGraph() to refresh the visualization
+    updateGraph();
+    console.log("removeNode: Graph updated.");
+
+    // Optional: Clear any suggestions related to the deleted node
+    suggestionPanel.innerHTML = '<div id="initial-help-text" class="text-center text-gray-500">Node removed. Select a node or start a new idea.</div>';
+    console.log("removeNode: Suggestion panel updated.");
+}
 
 
         function handleNodeClick(event, d) {
@@ -1443,15 +1437,25 @@
 
         /**
          * Handles the click event on a ghost node to materialize it.
-         * (To be fully implemented in the next step)
+         * @param {Object} ghostNodeData The data object of the clicked ghost node.
          */
         function handleGhostNodeClick(ghostNodeData) {
-            console.log("Ghost node clicked:", ghostNodeData);
-            // Implementation for next step:
-            // 1. Call addNode(ghostNodeData.name, ghostNodeData.actualParentNode)
-            // 2. If addNode is successful, remove all ghost nodes: masterGroup.selectAll(".ghost-node").remove();
-            // 3. The new node will trigger its own proactive suggestions if configured.
-            // 4. UpdateGraph will be called by addNode.
+            console.log("handleGhostNodeClick: Ghost node clicked:", ghostNodeData);
+
+            // 1. Call addNode with the ghost node's name and its actual parent node.
+            const newNode = addNode(ghostNodeData.name, ghostNodeData.actualParentNode);
+
+            // 2. If addNode is successful, remove all ghost nodes.
+            if (newNode) {
+                masterGroup.selectAll(".ghost-node").remove();
+                console.log("handleGhostNodeClick: Ghost nodes removed.");
+                // The new node will trigger its own proactive suggestions if configured (done by addNode).
+                // updateGraph will be called by addNode.
+                // Select the newly added node
+                handleNodeClick(null, newNode);
+            } else {
+                console.warn("handleGhostNodeClick: Failed to add node from ghost data.", ghostNodeData);
+            }
         }
 
 
