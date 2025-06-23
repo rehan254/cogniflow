@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CogniFlow - The LLM-Powered Idea Synthesizer</title>
     <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit@0.1.8/source.min.js"></script>
@@ -16,16 +19,17 @@
             --ui-border-dark: #444444;
             --ui-text-dark: #e0e0e0;
             --ui-focus-dark: #e58d47;
+            --ui-focus-glow: rgba(229, 141, 71, 0.65);
         }
 
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             height: 100vh;
             margin: 0;
-            transition: background-color 0.8s;
+            transition: background-color 1.5s ease-in-out;
         }
 
         #mindmap-container { flex-grow: 1; position: relative; background: transparent; }
@@ -38,14 +42,18 @@
             stroke-linecap: round;
         }
 
-        .node { cursor: pointer; }
+        .node { cursor: pointer; transition: filter 0.6s ease; }
         .node circle {
             stroke-width: 0;
             stroke: transparent;
-            transition: stroke 0.3s, stroke-width 0.3s, filter 0.3s;
+            transition: stroke 0.6s, stroke-width 0.6s;
+        }
+        .node.selected {
+            filter: drop-shadow(0 0 12px var(--ui-focus-glow));
         }
         .node.selected circle {
-            stroke-width: 4px;
+            stroke-width: 3px;
+            stroke: var(--ui-focus-dark);
         }
         .node.flashing circle {
             animation: flash 1s ease-out;
@@ -56,7 +64,7 @@
             text-anchor: middle;
             dominant-baseline: central;
             font-weight: 500;
-            transition: fill 0.8s;
+            transition: fill 1.5s ease-in-out;
             fill: #FFFFFF;
         }
         
@@ -199,7 +207,7 @@
             padding: 0.5rem;
             resize: none;
             outline: none;
-            transition: border-color 0.3s;
+            transition: border-color 0.6s ease;
         }
 
         .notes-editor {
@@ -208,6 +216,33 @@
             outline: none;
             padding: 0.5rem;
             border-radius: 8px;
+        }
+
+        .ai-actions-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        .ai-action-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--ui-border-dark);
+            background-color: var(--ui-input-bg-dark);
+            color: var(--ui-text-dark);
+            cursor: pointer;
+            width: 90%;
+            text-align: center;
+            font-size: 11pt;
+            transition: all 0.2s ease;
+        }
+
+        .ai-action-btn:hover {
+            border-color: var(--ui-focus-dark);
+            background-color: #3c3c3c;
         }
 
         @keyframes flash {
@@ -252,25 +287,22 @@
         let nextId = 0;
         let selectedNode = null;
         let isPrimedForChild = false;
+        let activeExpandedNode = null;
         let historyStack = [];
-        let isAnimatingExit = false;
+        let isDragging = false;
+        let isListEntryMode = false;
+        let activeListNode = null;
 
         // --- New Color & Theme Engine ---
         const dynastyPalettes = [
             // Palette 1: Deep Blues & Teals (Rich & Muted)
             ["#2a4d69", "#4b6f8e", "#6e91b2", "#92b3d6"],
-            // Palette 2: Earthy Browns & Olives (Rich & Muted)
-            ["#6f4f28", "#8e6e4e", "#ad8e74", "#ccae9a"],
             // Palette 3: Muted Reds & Burgundies (Rich & Muted)
             ["#7c3c3c", "#9a5b5b", "#b87a7a", "#d69999"],
             // Palette 4: Soft Purples & Mauves (Muted)
             ["#6a4f6d", "#87728b", "#a495a9", "#c1b8c7"],
-            // Palette 5: Forest Greens (Rich & Muted)
-            ["#3a5a40", "#587c60", "#769e80", "#94c0a0"],
             // Palette 6: Warm Grays & Stone (Muted)
             ["#5a5a5a", "#787878", "#969696", "#b4b4b4"],
-            // Palette 7: Dusky Oranges & Terracottas (Muted & Rich-Muted)
-            ["#b06548", "#c4836a", "#d8a18c", "#ecc0ae"],
             // Palette 8: Slate Blues & Grays (Muted)
             ["#485b6e", "#6a7e93", "#8c9faa", "#aebfcb"]
         ];
@@ -284,7 +316,13 @@
 
         function applyTheme() {
             // Set the focus color for UI elements
-            document.querySelector(':root').style.setProperty('--ui-focus-dark', dynastyPalettes[paletteIndex][0]);
+            const focusColorHex = dynastyPalettes[paletteIndex][0];
+            document.querySelector(':root').style.setProperty('--ui-focus-dark', focusColorHex);
+
+            const focusColor = d3.color(focusColorHex);
+            if (focusColor) {
+                 document.querySelector(':root').style.setProperty('--ui-focus-glow', `rgba(${focusColor.r}, ${focusColor.g}, ${focusColor.b}, 0.65)`);
+            }
             
             // Create a very dark, desaturated background gradient
             const paletteColor = dynastyPalettes[paletteIndex][2] || '#888888';
@@ -299,51 +337,113 @@
         
         // Helper function to check if a color is too bright for white text
         function isColorTooBright(color) {
-            const rgb = d3.rgb(color);
-            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
-            return luminance > 0.7; // Threshold for white text visibility
+            const d3Color = d3.color(color);
+            if (!d3Color) return false;
+            // Standard luminance calculation
+            const luminance = (0.299 * d3Color.r + 0.587 * d3Color.g + 0.114 * d3Color.b) / 255;
+            return luminance > 0.6;
+        }
+
+        function ensureTextVisible(color) {
+            return isColorTooBright(color) ? d3.color(color).darker(1.5).toString() : color;
+        }
+
+        // Dynamic font sizing based on zoom level and hierarchy
+        function updateDynamicFontSizes(specificNode = null) {
+            const currentScale = d3.zoomTransform(svg.node()).k;
+            const targetNodes = specificNode ? [specificNode] : nodeGroup.selectAll('.node').data();
+
+            nodeGroup.selectAll('.node').each(function(d) {
+                if (specificNode && d.id !== specificNode.id) return;
+
+                const text = d3.select(this).select('text');
+                if (d.isExpanded || d.isListNode) {
+                    text.style('font-size', '0pt');
+                    return;
+                }
+
+                const baseSize = 12; // Base font size in points
+                const zoomMultiplier = 1 / Math.sqrt(currentScale);
+                const depthMultiplier = 1 / (1 + (d.depth * 0.15)); // Reduce size more gently with depth
+                const finalSize = Math.max(4, baseSize * zoomMultiplier * depthMultiplier);
+                
+                text.style('font-size', `${finalSize}pt`);
+
+                const opacity = currentScale < 0.2 && d.depth > 3 ? Math.max(0, (currentScale - 0.1) * 10) : 1;
+                text.style('opacity', opacity);
+            });
         }
         
-        // Helper function to darken a color if it's too bright
-        function ensureTextVisible(color) {
-            if (isColorTooBright(color)) {
-                return d3.color(color).darker(1.5).toString();
-            }
-            return color;
-        }
+        function forceLinkRepel() {
+            const repulsionStrength = 0.5; // Tweak this value to change force strength
+            const repulsionDistance = 30;  // The radius around a link to repel nodes
 
-        function outwardForce(alpha) {
-            const rootNode = nodes[0];
-            if (!rootNode) return;
+            return function(alpha) {
+                for (const node of nodes) {
+                    for (const link of links) {
+                        // Skip if the node is one of the link's endpoints
+                        if (link.source === node || link.target === node) continue;
 
-            const strength = 0.04; 
+                        const x1 = link.source.x;
+                        const y1 = link.source.y;
+                        const x2 = link.target.x;
+                        const y2 = link.target.y;
+                        const x0 = node.x;
+                        const y0 = node.y;
 
-            nodes.forEach(node => {
-                if (node === rootNode) return;
+                        // Find the closest point on the link segment to the node
+                        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+                        if (l2 === 0) continue; // Skip if link has zero length
 
-                const dx = node.x - rootNode.x;
-                const dy = node.y - rootNode.y;
-                const distance = Math.hypot(dx, dy) || 1;
-                
-                const force = strength * alpha;
-                
-                node.vx += (dx / distance) * force;
-                node.vy += (dy / distance) * force;
-            });
+                        let t = ((x0 - x1) * (x2 - x1) + (y0 - y1) * (y2 - y1)) / l2;
+                        t = Math.max(0, Math.min(1, t)); // Clamp t to the [0, 1] range
+
+                        const closestX = x1 + t * (x2 - x1);
+                        const closestY = y1 + t * (y2 - y1);
+
+                        const dx = x0 - closestX;
+                        const dy = y0 - closestY;
+                        const d = Math.sqrt(dx * dx + dy * dy);
+
+                        // If the node is within the repulsion distance, apply a force
+                        if (d < repulsionDistance) {
+                            const force = repulsionStrength * (1 - d / repulsionDistance) * alpha;
+                            const forceX = (dx / d) * force;
+                            const forceY = (dy / d) * force;
+
+                            // Apply repulsion force to the node
+                            node.vx += forceX;
+                            node.vy += forceY;
+                            
+                            // Apply a counter-force to the link's endpoints to maintain stability
+                            const tInv = 1 - t;
+                            link.source.vx -= forceX * tInv;
+                            link.source.vy -= forceY * tInv;
+                            link.target.vx -= forceX * t;
+                            link.target.vy -= forceY * t;
+                        }
+                    }
+                }
+            };
         }
 
         const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.targetDistance).strength(0.7))
-            .force("charge", d3.forceManyBody().strength(-400))
-            .force("collide", d3.forceCollide().radius(d => d.radius + 20).strength(1))
-            .force("outward", outwardForce);
+            .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.targetDistance).strength(0.1)) 
+            .force("charge", d3.forceManyBody().strength(d => d.depth === 0 ? -1000 : -450)) // Reduced central charge, slightly more repulsion for children
+            .force("y", d3.forceY(container.clientHeight / 2).strength(0.04)) // Pulls nodes towards the horizontal centerline
+            .force("collide", d3.forceCollide().radius(d => d.radius + 15).strength(0.8))
+            .force("linkRepel", forceLinkRepel()) // The new custom force
+            .velocityDecay(0.5) // More friction to reduce floating
+            .alphaDecay(0.03) // Faster cooldown
+            .alphaMin(0.001);
 
         const masterGroup = svg.append("g");
-        let linkGroup = masterGroup.append("g");
+        let linkGroup = masterGroup.append("g").attr("class", "link-layer");
         let nodeGroup = masterGroup.append("g");
         
         const zoom = d3.zoom().scaleExtent([0.1, 2]).on("zoom", (event) => {
             masterGroup.attr("transform", event.transform);
+            updateDynamicFontSizes(); // Update font sizes on zoom
         });
         svg.call(zoom);
 
@@ -351,194 +451,530 @@
 
         // --- Core Functions ---
         function updateGraph() {
+            // --- LINKS ---
             linkGroup.selectAll(".link")
                 .data(links, d => `${d.source.id}-${d.target.id}`)
                 .join("path")
                 .attr("class", "link")
-                .attr("stroke", d => d.source.color) 
+                .attr("stroke", d => d.source.color)
                 .style("stroke-opacity", 0.5);
 
+            // --- NODES (The General Update Pattern) ---
             const node = nodeGroup.selectAll(".node")
                 .data(nodes, d => d.id);
-            
-            node.exit().transition().duration(750).attr("transform", "scale(0)").remove();
-            
+
+            // Exit
+            node.exit().transition().duration(800).attr("transform", "scale(0)").remove();
+
+            // Enter
             const nodeEnter = node.enter().append("g")
                 .attr("class", "node")
-                .on("click", handleNodeClick)
+                .attr("transform", d => `translate(${d.x},${d.y})`)
                 .on("dblclick", handleNodeDoubleClick)
-                .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
 
             nodeEnter.append("circle");
+            
             nodeEnter.append("text");
 
-            const nodeUpdate = nodeEnter.merge(node);
-            
+            nodeEnter.append('foreignObject')
+                .style('opacity', 0)
+                .style('pointer-events', 'none');
+
+            // Update
+            const nodeUpdate = nodeEnter.merge(node)
+                .classed('selected', d => d.id === selectedNode?.id);
+
             nodeUpdate.each(function(d) {
                 const el = d3.select(this);
-                const nodeColor = d.color;
+                const circle = el.select('circle');
+                const text = el.select('text');
+                const fo = el.select('foreignObject');
 
-                // Clean up elements from other states
-                el.selectAll('text, foreignObject').remove();
+                // Data-join for the notes indicator
+                const indicator = el.selectAll('.notes-indicator-icon')
+                    .data((!d.isExpanded && d.notes && d.notes.trim() !== '') ? [d] : []);
 
+                indicator.exit()
+                    .transition().duration(600)
+                    .style('opacity', 0)
+                    .remove();
+                
+                const indicatorEnter = indicator.enter().append('text')
+                    .attr('class', 'notes-indicator-icon')
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'central')
+                    .text('≡') // Clearer "list" icon
+                    .style('font-size', '12pt')
+                    .style('opacity', 0)
+                    .style('pointer-events', 'none');
+
+                indicator.merge(indicatorEnter)
+                    .style('fill', isColorTooBright(d.color) ? '#000000' : '#FFFFFF')
+                    .transition().duration(600)
+                    .style('opacity', 0.5); // Increased opacity for visibility
+
+                // Calculate dimensions based on state - responsive sizing
+                const foWidth = Math.min(280, container.clientWidth * 0.25); // Responsive width, max 25% of screen
+                const foHeight = Math.min(180, container.clientHeight * 0.3); // Responsive height, max 30% of screen
+                
+                // Logic for Expanded View
                 if (d.isExpanded) {
                     el.raise();
-                    const foWidth = 300;
-                    const foHeight = 200;
-
-                    // Hide the original circle and text
-                    el.select('circle').transition().duration(300).attr('r', 0);
                     
-                    const fo = el.append('foreignObject')
-                        .attr('x', -d.radius)
-                        .attr('y', -d.radius)
-                        .attr('width', d.radius * 2)
-                        .attr('height', d.radius * 2)
-                        .style('opacity', 0)
-                        .style('pointer-events', 'all')
-                        .on('click', event => event.stopPropagation());
-
-                    fo.transition().duration(800).ease(d3.easeCubicInOut)
+                    // Smoothly morph the circle to a rounded rectangle
+                    circle.transition()
+                        .duration(600)
+                        .ease(d3.easeCubicInOut)
+                        .attr('r', 0)
+                        .style('opacity', 0);
+                    
+                    // Fade out text
+                    text.transition()
+                        .duration(300)
+                        .style('opacity', 0);
+                    
+                    // Expand and fade in the foreignObject
+                    fo.transition()
+                        .duration(600)
+                        .ease(d3.easeCubicInOut)
                         .attr('x', -foWidth / 2)
                         .attr('y', -foHeight / 2)
                         .attr('width', foWidth)
                         .attr('height', foHeight)
-                        .style('opacity', 1);
-
-                    const baseColor = d.color === '#FFFFFF' ? '#EAEAEA' : d.color;
-                    const bgColor = d3.color(baseColor);
-                    bgColor.opacity = 0.95;
-                    const textColor = isColorTooBright(baseColor) ? '#000000' : '#FFFFFF';
-                    const h2Color = isColorTooBright(baseColor) ? d3.color(baseColor).darker(1.5) : d3.color(baseColor).brighter(1.5);
-
-                    const div = fo.append('xhtml:div')
-                        .attr('class', 'expanded-node-container')
-                        .style('width', '100%')
-                        .style('height', '100%')
-                        .style('background-color', bgColor)
-                        .style('color', textColor);
-                    
-                    div.append('xhtml:h2')
-                        .style('font-weight', 400)
-                        .style('color', h2Color)
-                        .attr('contenteditable', true)
-                        .text(d.name)
-                        .on('mousedown', event => event.stopPropagation())
-                        .on('keydown', function(event) {
-                            event.stopPropagation();
-                            if (event.key === 'Enter') {
-                                event.preventDefault();
-                                this.blur();
-                            }
-                        })
-                        .on('blur', function() {
-                            d.name = this.innerText;
-                            updateGraph();
+                        .style('opacity', 1)
+                        .on('end', () => {
+                            fo.style('pointer-events', 'all')
+                              .on('click', event => event.stopPropagation());
                         });
 
-                    const notesEditor = div.append('xhtml:div')
-                        .attr('class', 'notes-editor')
-                        .attr('contenteditable', true)
-                        .style('color', textColor)
-                        .on('mousedown', event => event.stopPropagation())
-                        .on('keydown', event => {
-                            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                    if (fo.select('.expanded-node-container').empty()) {
+                        fo.html(''); // Clear previous content before rebuilding
+                        const baseColor = d.color === '#FFFFFF' ? '#EAEAEA' : d.color;
+                        const bgColor = d3.color(baseColor);
+                        bgColor.opacity = 0.85;
+                        const textColor = isColorTooBright(baseColor) ? '#000000' : '#FFFFFF';
+                        const h2Color = isColorTooBright(baseColor) ? d3.color(baseColor).darker(1.5) : d3.color(baseColor).brighter(1.5);
+
+                        const div = fo.append('xhtml:div')
+                            .attr('class', 'expanded-node-container')
+                            .style('width', '100%').style('height', '100%')
+                            .style('background-color', bgColor.toString())
+                            .style('color', textColor)
+                            .style('opacity', 0)
+                            .style('border-radius', '12px')
+                            .style('padding', '12px')
+                            .style('box-sizing', 'border-box')
+                            .style('display', 'flex')
+                            .style('flex-direction', 'column')
+                            .style('gap', '8px');
+                        
+                        // Fade in the content after a delay
+                        div.transition()
+                            .delay(300)
+                            .duration(300)
+                            .style('opacity', 1);
+                        
+                        div.append('xhtml:h2')
+                            .style('font-weight', '500')
+                            .style('color', h2Color.toString())
+                            .style('font-size', '14pt')
+                            .style('margin', '0')
+                            .style('padding', '0')
+                            .style('text-align', 'center')
+                            .style('flex-shrink', '0')
+                            .text(d.name);
+
+                        const actionsContainer = div.append('xhtml:div')
+                            .attr('class', 'ai-actions-container');
+                        
+                        const actions = ['Define', 'Expand On', 'Solutions'];
+                        actions.forEach(action => {
+                            actionsContainer.append('xhtml:button')
+                                .attr('class', 'ai-action-btn')
+                                .text(action)
+                                .on('click', event => {
+                                    event.stopPropagation();
+                                    console.log(`AI Action: ${action} for node ${d.name}`);
+                                    // AI functionality will be added here later
+                                });
+                        });
+                    }
+                } else if (d.isListNode) { // Logic for List Node View
+                    // Calculate the height based on number of list items with better sizing
+                    const itemHeight = 35; // Better spacing for readability
+                    const headerHeight = 40; // Was 45, reduced by 5
+                    const bottomPadding = 40; // Was 20, made same as header
+                    const sidePadding = 20; // More side padding
+                    const minListItems = Math.max(3, d.listItems.length); // Minimum space for 3 items
+                    const listHeight = headerHeight + (minListItems * itemHeight) + bottomPadding;
+                    const maxItemTextLength = Math.max(d.name.length, ...d.listItems.map(item => item.text.length));
+                    const listWidth = Math.max(280, Math.min(400, maxItemTextLength * 8 + 80)); // Dynamic width based on content
+                    
+                    // Set collision radius for the list node to approximate its bounding box
+                    d.radius = Math.hypot(listWidth, listHeight) / 2;
+                    
+                    // Hide the circle and text for list nodes
+                    circle.style('opacity', 0).attr('r', 0);
+                    text.style('opacity', 0);
+                    
+                    // Show the foreignObject for the list with smooth transition
+                    fo.transition()
+                      .duration(400)
+                      .ease(d3.easeCubicInOut)
+                      .attr('x', -listWidth / 2)
+                      .attr('y', -listHeight / 2)
+                      .attr('width', listWidth)
+                      .attr('height', listHeight)
+                      .style('opacity', 1)
+                      .on('end', () => {
+                          fo.style('pointer-events', 'all')
+                            .on('click', event => event.stopPropagation());
+                      });
+                    
+                    if (fo.select('.list-node-container').empty()) {
+                        fo.html(''); // Clear previous content
+                        const baseColor = d.color === '#FFFFFF' ? '#EAEAEA' : d.color;
+                        const bgColor = d3.color(baseColor);
+                        bgColor.opacity = 0.9; // Slightly more opaque
+                        const textColor = isColorTooBright(baseColor) ? '#000000' : '#FFFFFF';
+                        const headerColor = isColorTooBright(baseColor) ? d3.color(baseColor).darker(1.5) : d3.color(baseColor).brighter(1.5);
+                        
+                        const div = fo.append('xhtml:div')
+                            .attr('class', 'list-node-container')
+                            .style('width', '100%')
+                            .style('height', '100%')
+                            .style('background-color', bgColor.toString())
+                            .style('color', textColor)
+                            .style('border-radius', '12px')
+                            .style('padding', `${sidePadding}px`)
+                            .style('box-sizing', 'border-box')
+                            .style('backdrop-filter', 'blur(5px)')
+                            .style('display', 'flex')
+                            .style('flex-direction', 'column')
+                            .style('transition', 'background-color 0.3s ease'); // Smooth background transitions
+                        
+                        // List header
+                        const header = div.append('xhtml:h3')
+                            .style('margin', '0 0 12px 0')
+                            .style('font-size', '16pt')
+                            .style('font-weight', '600')
+                            .style('color', headerColor.toString())
+                            .style('text-align', 'center')
+                            .style('flex-shrink', '0')
+                            .attr('contenteditable', true)
+                            .text(d.name)
+                            .on('mousedown', event => event.stopPropagation())
+                            .on('keydown', function(event) {
+                                if (event.key === 'Enter') { event.preventDefault(); this.blur(); }
                                 event.stopPropagation();
+                            })
+                            .on('blur', function() { d.name = this.innerText; updateGraph(); });
+                        
+                        // List items container with smooth transitions
+                        const listContainer = div.append('xhtml:div')
+                            .style('flex-grow', '1')
+                            .style('display', 'flex')
+                            .style('flex-direction', 'column')
+                            .style('gap', '10px') // Better spacing between items
+                            .style('transition', 'all 0.3s ease');
+                        
+                        // Render list items
+                        d.listItems.forEach((item, index) => {
+                            const itemDiv = listContainer.append('xhtml:div')
+                                .style('display', 'flex')
+                                .style('align-items', 'flex-start')
+                                .style('font-size', '13pt')
+                                .style('line-height', '1.4')
+                                .style('min-height', '20px');
+                            
+                            if (d.listType === 'bullet') {
+                                itemDiv.append('xhtml:span')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '2px')
+                                    .style('color', textColor)
+                                    .style('font-weight', 'bold')
+                                    .style('flex-shrink', '0')
+                                    .text('•');
+                            } else if (d.listType === 'numbered') {
+                                itemDiv.append('xhtml:span')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '2px')
+                                    .style('color', textColor)
+                                    .style('font-weight', '500')
+                                    .style('flex-shrink', '0')
+                                    .style('min-width', '20px')
+                                    .text((index + 1) + '.');
+                            } else if (d.listType === 'task') {
+                                const checkbox = itemDiv.append('xhtml:input')
+                                    .attr('type', 'checkbox')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '3px')
+                                    .style('flex-shrink', '0')
+                                    .style('width', '16px')
+                                    .style('height', '16px')
+                                    .property('checked', item.checked)
+                                    .on('change', function() {
+                                        item.checked = this.checked;
+                                    })
+                                    .on('click', event => event.stopPropagation());
                             }
-                        })
-                        .on('blur', function() {
-                             d.notes = this.innerHTML;
+                            
+                            itemDiv.append('xhtml:span')
+                                .style('flex-grow', '1')
+                                .style('color', textColor)
+                                .style('word-wrap', 'break-word')
+                                .text(item.text);
                         });
-                    
-                    notesEditor.html(d.notes || '');
-
-                } else if (d.depth === 0) {
-                    d.radius = 70;
-                    
-                    const maxFontSize = 36;
-                    const minFontSize = 12;
-                    const padding = 10;
-                    const availableWidth = d.radius * 2 - (padding * 2);
-
-                    const text = el.append('text')
-                        .attr('dy', '.35em');
-                    
-                    let fontSize = Math.min(maxFontSize, availableWidth / (d.name.length * 0.6));
-                    fontSize = Math.max(minFontSize, fontSize);
-                    
-                    text.style('font-size', `${fontSize}px`)
-                        .style('letter-spacing', '-1px');
-                    text.text(d.name);
-
-                } else { // Handles d.depth > 0
-                    d.radius = d.depth === 1 ? 40 : 25;
-
-                    const text = el.append('text')
-                        .text(d.name);
-                    
-                    const baseSizePt = 24;
-                    const decreasePt = 6;
-                    const minSizePt = 9;
-                    
-                    const fontSizePt = Math.max(minSizePt, baseSizePt - ((d.depth - 1) * decreasePt));
-                    
-                    text.style('font-size', `${fontSizePt}pt`);
-
-                    if (d.depth === 1) {
-                        text.attr('dy', '.35em')
-                            .style('letter-spacing', '2px');
                     } else {
-                        const fontSizePx = fontSizePt * 4/3;
-                        text.attr('dy', d.radius + fontSizePx * 0.7)
-                            .style('letter-spacing', 'normal');
+                        // Update existing list - recalculate dimensions with smooth animation
+                        const newItemHeight = 35;
+                        const newHeaderHeight = 40; // Was 45, reduced by 5
+                        const newBottomPadding = 40; // Was 20, made same as header
+                        const newMinListItems = Math.max(3, d.listItems.length);
+                        const newListHeight = newHeaderHeight + (newMinListItems * newItemHeight) + newBottomPadding;
+                        const newMaxItemTextLength = Math.max(d.name.length, ...d.listItems.map(item => item.text.length));
+                        const newListWidth = Math.max(280, Math.min(400, newMaxItemTextLength * 8 + 80));
+                        
+                        // Update foreignObject dimensions with smooth animation
+                        fo.transition()
+                            .duration(500)
+                            .ease(d3.easeCubicInOut)
+                            .attr('x', -newListWidth / 2)
+                            .attr('y', -newListHeight / 2)
+                            .attr('width', newListWidth)
+                            .attr('height', newListHeight);
+                        
+                        // Rebuild the content
+                        const container = fo.select('.list-node-container');
+                        container.selectAll('*').remove(); // Clear all content
+                        
+                        // Ensure the container has transition for smooth background changes
+                        container.style('transition', 'background-color 0.3s ease');
+                        
+                        const baseColor = d.color === '#FFFFFF' ? '#EAEAEA' : d.color;
+                        const textColor = isColorTooBright(baseColor) ? '#000000' : '#FFFFFF';
+                        const headerColor = isColorTooBright(baseColor) ? d3.color(baseColor).darker(1.5) : d3.color(baseColor).brighter(1.5);
+                        
+                        // Rebuild header
+                        const header = container.append('xhtml:h3')
+                            .style('margin', '0 0 12px 0')
+                            .style('font-size', '16pt')
+                            .style('font-weight', '600')
+                            .style('color', headerColor.toString())
+                            .style('text-align', 'center')
+                            .style('flex-shrink', '0')
+                            .attr('contenteditable', true)
+                            .text(d.name)
+                            .on('mousedown', event => event.stopPropagation())
+                            .on('keydown', function(event) {
+                                if (event.key === 'Enter') { event.preventDefault(); this.blur(); }
+                                event.stopPropagation();
+                            })
+                            .on('blur', function() { d.name = this.innerText; updateGraph(); });
+                        
+                        // Rebuild items container with smooth transitions
+                        const listContainer = container.append('xhtml:div')
+                            .style('flex-grow', '1')
+                            .style('display', 'flex')
+                            .style('flex-direction', 'column')
+                            .style('gap', '10px')
+                            .style('transition', 'all 0.3s ease');
+                        
+                        // Rebuild items
+                        d.listItems.forEach((item, index) => {
+                            const itemDiv = listContainer.append('xhtml:div')
+                                .style('display', 'flex')
+                                .style('align-items', 'flex-start')
+                                .style('font-size', '13pt')
+                                .style('line-height', '1.4')
+                                .style('min-height', '20px');
+                            
+                            if (d.listType === 'bullet') {
+                                itemDiv.append('xhtml:span')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '2px')
+                                    .style('color', textColor)
+                                    .style('font-weight', 'bold')
+                                    .style('flex-shrink', '0')
+                                    .text('•');
+                            } else if (d.listType === 'numbered') {
+                                itemDiv.append('xhtml:span')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '2px')
+                                    .style('color', textColor)
+                                    .style('font-weight', '500')
+                                    .style('flex-shrink', '0')
+                                    .style('min-width', '20px')
+                                    .text((index + 1) + '.');
+                            } else if (d.listType === 'task') {
+                                const checkbox = itemDiv.append('xhtml:input')
+                                    .attr('type', 'checkbox')
+                                    .style('margin-right', '10px')
+                                    .style('margin-top', '3px')
+                                    .style('flex-shrink', '0')
+                                    .style('width', '16px')
+                                    .style('height', '16px')
+                                    .property('checked', item.checked)
+                                    .on('change', function() {
+                                        item.checked = this.checked;
+                                    })
+                                    .on('click', event => event.stopPropagation());
+                            }
+                            
+                            itemDiv.append('xhtml:span')
+                                .style('flex-grow', '1')
+                                .style('color', textColor)
+                                .style('word-wrap', 'break-word')
+                                .text(item.text);
+                        });
                     }
-                }
-                
-                const circle = el.select('circle')
-                    .attr('fill', nodeColor)
-                    .attr('stroke', isColorTooBright(nodeColor) ? d3.color(nodeColor).darker(1.5) : d3.color(nodeColor).brighter(1.5));
-
-                if (d.isClosing) {
-                    // Animate the circle shrinking in
-                    circle.attr('r', d.radius * 1.5).style('opacity', 0)
-                        .transition()
-                        .duration(300) // fast
-                        .ease(d3.easeCubicOut)
-                        .attr('r', d.radius)
-                        .style('opacity', 1);
-                    delete d.isClosing;
-                } else {
-                    // Set radius normally and ensure opacity is correct for non-animating nodes
-                    circle.attr('r', d.radius);
-                    if (!d.isExpanded) {
-                        circle.style('opacity', 1);
+                } else { // Logic for Standard (Circle) View
+                    // Set proper dimensions for the circle based on depth
+                    if (d.depth === 0) {
+                        d.radius = 70;
+                        
+                        // Text positioning for central node - below the circle, capitalized
+                        const words = d.name.toUpperCase().split(/\s+/); // Convert to uppercase
+                        const lineHeight = 22; // Line height for below-circle text
+                        const maxWidth = d.radius * 3; // Wider text area since it's below the circle
+                        const textOffsetY = d.radius + 25; // Position text closer to the circle
+                        
+                        // Clear existing text
+                        text.text('');
+                        
+                        let line = [];
+                        let lineNumber = 0;
+                        let tspan = text.append('tspan').attr('x', 0).attr('dy', 0);
+                        
+                        // Create wrapped text
+                        words.forEach((word, i) => {
+                            line.push(word);
+                            tspan.text(line.join(' '));
+                            
+                            // Check if line is too long
+                            if (tspan.node().getComputedTextLength() > maxWidth && line.length > 1) {
+                                line.pop();
+                                tspan.text(line.join(' '));
+                                line = [word];
+                                lineNumber++;
+                                tspan = text.append('tspan')
+                                    .attr('x', 0)
+                                    .attr('dy', lineHeight)
+                                    .text(word);
+                            }
+                        });
+                        
+                        // Position the text below the circle
+                        const totalLines = text.selectAll('tspan').size();
+                        text.attr('transform', `translate(0, ${textOffsetY})`);
+                        
+                        // Style the text - smaller and less bold for a softer look
+                        text.style('font-size', '18pt')
+                            .style('letter-spacing', '0px')
+                            .style('fill', '#E0E0E0')
+                            .style('font-weight', '500');
+                        
+                        // Remove fisheye effect handlers
+                        el.on('mouseenter', null).on('mouseleave', null);
+                    } else {
+                        // Dynamic font sizing will be handled by updateDynamicFontSizes()
+                        // Set base radius
+                        d.radius = d.depth === 1 ? 35 : 25;
+                        
+                        // For non-central nodes, ensure single line text and proper color
+                        let textColor;
+                        if (d.depth === 1) {
+                            // First generation: use a softer, lighter version of the background color
+                            textColor = d3.color(d.color).brighter(1.8).toString();
+                        } else {
+                            // Other depths: use a soft light gray or black
+                            textColor = isColorTooBright(d.color) ? '#000000' : '#E0E0E0';
+                        }
+                        
+                        text.text(d.name)
+                            .attr('transform', null)
+                            .style('fill', textColor)
+                            .style('font-weight', '500');
+                        
+                        // Initial text positioning (will be updated by updateDynamicFontSizes)
+                        if (d.depth === 1) {
+                            text.attr('dy', '0').attr('dominant-baseline', 'middle');
+                        } else {
+                            text.attr('dy', d.radius + 12).attr('dominant-baseline', 'middle');
+                        }
                     }
-                }
+                    
+                    // If we're transitioning back from expanded, animate it
+                    if (d.wasExpanded) {
+                        d.wasExpanded = false; // Consume the flag immediately
 
-                if (!d.isExpanded) {
-                    el.select('text').style('fill', isColorTooBright(nodeColor) ? '#000000' : '#FFFFFF');
+                        fo.style('pointer-events', 'none');
+                        
+                        // All animations happen simultaneously
+                        // Fade out the content
+                        fo.select('.expanded-node-container')
+                            .transition()
+                            .duration(300)
+                            .style('opacity', 0);
+                        
+                        // Shrink the foreignObject
+                        fo.transition()
+                            .duration(600)
+                            .ease(d3.easeCubicInOut)
+                            .attr('x', 0)
+                            .attr('y', 0)
+                            .attr('width', 0)
+                            .attr('height', 0)
+                            .style('opacity', 0)
+                            .on('end', function() {
+                                d3.select(this).html(''); // Clean up content after transition
+                            });
+                        
+                        // Simultaneously morph back to circle
+                        circle.transition()
+                            .duration(600)
+                            .ease(d3.easeCubicInOut)
+                            .attr('r', d.radius)
+                            .style('opacity', 1);
+                        
+                        // And fade text back in
+                        text.transition()
+                            .duration(600)
+                            .ease(d3.easeCubicInOut)
+                            .style('opacity', 1);
+                    } else {
+                        // Normal rendering (no transition needed)
+                        fo.style('opacity', 0).style('pointer-events', 'none');
+                        circle.style('opacity', 1).attr('r', d.radius);
+                        text.style('opacity', 1);
+                    }
+                    
+                    circle.attr('fill', d.color);
                 }
             });
-            
+
             simulation.nodes(nodes);
             simulation.force("link").links(links);
-            simulation.alpha(1).restart();
             
-            optimizeView();
+            // Apply dynamic font sizing after node updates
+            setTimeout(() => updateDynamicFontSizes(), 50);
         }
 
         function generateBranchPath(d) {
             const path = d3.path();
             path.moveTo(d.source.x, d.source.y);
-            const midX = d.source.x + (d.target.x - d.source.x) * 0.5 - (d.target.y - d.source.y) * d.cp_dx_factor;
-            const midY = d.source.y + (d.target.y - d.source.y) * 0.5 + (d.target.x - d.source.x) * d.cp_dy_factor;
-            path.quadraticCurveTo(midX, midY, d.target.x, d.target.y);
+            path.lineTo(d.target.x, d.target.y);
             return path.toString();
         }
         
         simulation.on("tick", () => {
             linkGroup.selectAll(".link").attr("d", generateBranchPath);
             nodeGroup.selectAll(".node").attr("transform", d => `translate(${d.x},${d.y})`);
+            updateDynamicFontSizes(); // Update font sizes on every tick
         });
         
         function optimizeView() {
@@ -556,41 +992,93 @@
             const midY = y0 + fullHeight / 2;
             const scale = Math.min(1.2, 0.9 / Math.max((fullWidth + padding) / container.clientWidth, (fullHeight + padding) / container.clientHeight));
             const transform = d3.zoomIdentity.translate(container.clientWidth / 2 - scale * midX, container.clientHeight / 2 - scale * midY).scale(scale);
-            svg.transition().duration(900).call(zoom.transform, transform);
+            svg.transition().duration(600).call(zoom.transform, transform) // Reduced transition duration
+                .on('end', updateDynamicFontSizes); // Update font sizes after zoom transition
         }
+
+        // --- State Management ---
+        // Removed setMode and selectNode functions, reverting to older, direct logic.
 
         // --- Interaction Logic ---
         function addNode(name, parent = null) {
             if (!name.trim()) return null;
             let newNode;
-            if (nodes.length === 0) {
-                // Root node gets white color
-                const color = "#FFFFFF";
-                newNode = {id: nextId++, name, depth: 0, children:[], x: container.clientWidth / 2, y: container.clientHeight / 2, fx: container.clientWidth / 2, fy: container.clientHeight / 2, color: color };
+
+            // Check if this is a list type entry
+            const listTypeMatch = name.match(/^(- |1\. |\[\] )(.*)/);
+            const isListType = listTypeMatch !== null;
+            let listType = null;
+            let listContent = name;
+            
+            if (isListType) {
+                if (listTypeMatch[1] === '- ') listType = 'bullet';
+                else if (listTypeMatch[1] === '1. ') listType = 'numbered';
+                else if (listTypeMatch[1] === '[] ') listType = 'task';
+                listContent = listTypeMatch[2];
+            }
+
+            if (parent === null) {
+                // This block should only ever create the VERY FIRST node.
+                if (nodes.length > 0) {
+                    console.error("Attempted to create a second central node. Action blocked.");
+                    return null; // Prevent creating more than one root.
+                }
+                const color = "#FFFFFF"; // Central nodes are always white
+                let x, y;
+                x = container.clientWidth / 2;
+                y = container.clientHeight / 2;
+                newNode = { 
+                    id: nextId++, 
+                    name: isListType ? (listContent || 'New List') : name, 
+                    depth: 0, 
+                    children:[], 
+                    x, y, fx: x, fy: y, 
+                    color: color,
+                    isListNode: false, // Central node cannot be a list
+                    listType: undefined,
+                    listItems: undefined
+                };
                 nodes.push(newNode);
             } else {
-                if(!parent) return null;
-                const depth = parent.depth + 1;
-                const targetDistance = 90 * Math.pow(1.1, depth);
+                // If this is a list type entry, transform the parent into a list node
+                if (isListType && parent && !parent.isListNode) {
+                    // Transform the parent into a list node
+                    parent.isListNode = true;
+                    parent.listType = listType;
+                    parent.listItems = [];
+                    
+                    // Add the first item if there's content
+                    if (listContent) {
+                        parent.listItems.push({
+                            text: listContent,
+                            checked: listType === 'task' ? false : undefined,
+                            id: Date.now()
+                        });
+                    }
+                    
+                    // Enter list entry mode for this node
+                    isListEntryMode = true;
+                    activeListNode = parent;
+                    
+                    updateGraph();
+                    // Use a much gentler alpha to avoid violent-looking node readjustment
+                    simulation.alpha(0.08).restart();
+                    return parent; // Return the transformed parent
+                }
                 
-                // Ensure parent.children array exists before using it.
+                // Regular node creation
+                const depth = parent.depth + 1;
+                // New distance logic for the more stable, horizontal layout
+                const targetDistance = Math.max(40, 150 - depth * 35); // e.g., 115, 80, 45...
+
                 if (!parent.children) parent.children = [];
 
                 let finalColor;
                 if (depth === 1) {
                     // First generation: each child gets a unique palette
-                    const availablePalettes = dynastyPalettes.filter((_, idx) => {
-                        // Check if this palette is already used by a sibling
-                        return !Array.from(firstGenPaletteAssignment.values()).includes(idx);
-                    });
-                    
-                    // If all palettes are used, cycle back
-                    const paletteIdx = availablePalettes.length > 0 
-                        ? dynastyPalettes.indexOf(availablePalettes[0])
-                        : parent.children.length % dynastyPalettes.length;
-                    
+                    const availablePalettes = dynastyPalettes.filter((_, idx) => !Array.from(firstGenPaletteAssignment.values()).includes(idx));
+                    const paletteIdx = availablePalettes.length > 0 ? dynastyPalettes.indexOf(availablePalettes[0]) : parent.children.length % dynastyPalettes.length;
                     firstGenPaletteAssignment.set(nextId, paletteIdx);
-                    // Use the first (darkest) color from the palette
                     finalColor = ensureTextVisible(dynastyPalettes[paletteIdx][0]);
                 } else {
                     // Deeper generations: inherit from their dynasty's palette
@@ -599,46 +1087,60 @@
                         const parentLink = links.find(l => l.target.id === firstGenAncestor.id);
                         firstGenAncestor = parentLink ? parentLink.source : null;
                     }
-                    
                     const dynastyPaletteIdx = firstGenPaletteAssignment.get(firstGenAncestor.id);
                     if (dynastyPaletteIdx !== undefined) {
                         const palette = dynastyPalettes[dynastyPaletteIdx];
-                        // Use deeper colors in the palette for deeper generations
                         const colorIndex = Math.min(depth - 2, palette.length - 1);
                         finalColor = ensureTextVisible(palette[colorIndex]);
                     } else {
-                        // Fallback: just brighten parent color
                         finalColor = ensureTextVisible(d3.color(parent.color).brighter(0.3).toString());
                     }
                 }
 
+                // Restore cone-based placement logic
                 const rootNode = nodes[0];
-                const parentAngle = Math.atan2(parent.y - rootNode.y, parent.x - rootNode.x);
-                const coneWidth = (160 * Math.PI) / 180;
+                if (!rootNode) return null; // Should not happen if we have a parent
+
+                let parentAngle, coneWidth;
+                if (parent.depth === 0) {
+                    // For the central node, allow children to be placed radially (full 360 degrees)
+                    parentAngle = 0; // No preferred direction, start from 0 rad
+                    coneWidth = 2 * Math.PI;
+                } else {
+                    // For other nodes, use a 160-degree cone based on their own angle from the center
+                    parentAngle = Math.atan2(parent.y - rootNode.y, parent.x - rootNode.x);
+                    coneWidth = (160 * Math.PI) / 180;
+                }
                 const coneStart = parentAngle - coneWidth / 2;
-                const siblingAngles = (parent.children || []).map(child => Math.atan2(child.y - parent.y, child.x - parent.x)).sort((a,b) => a - b);
-                let bestAngle = parentAngle; 
+
+                const siblingAngles = parent.children.map(child => Math.atan2(child.y - parent.y, child.x - parent.x));
+                let bestAngle = parentAngle; // Default to center
 
                 if (siblingAngles.length > 0) {
-                    let maxGap = 0;
-                    let angleAtMaxGap = -1;
                     let normalizedSiblings = siblingAngles.map(a => {
                         let norm = a - coneStart;
                         while(norm < 0) norm += 2 * Math.PI;
                         return norm % (2 * Math.PI);
                     }).filter(a => a <= coneWidth + 0.001).sort((a,b)=>a-b);
-                    if (normalizedSiblings.length === 0) {
-                        bestAngle = parentAngle;
-                    } else {
+
+                    if (normalizedSiblings.length > 0) {
+                        let maxGap = 0;
+                        let angleAtMaxGap = -1;
+
                         maxGap = normalizedSiblings[0];
                         angleAtMaxGap = coneStart + maxGap / 2;
-                        for(let i=0; i < normalizedSiblings.length; i++){
-                            const nextSiblingAngle = i === normalizedSiblings.length - 1 ? coneWidth : normalizedSiblings[i+1];
-                            let gap = nextSiblingAngle - normalizedSiblings[i];
+
+                        for(let i = 0; i < normalizedSiblings.length - 1; i++){
+                            let gap = normalizedSiblings[i+1] - normalizedSiblings[i];
                             if (gap > maxGap) {
                                 maxGap = gap;
                                 angleAtMaxGap = coneStart + normalizedSiblings[i] + gap / 2;
                             }
+                        }
+
+                        let lastGap = coneWidth - normalizedSiblings[normalizedSiblings.length - 1];
+                        if (lastGap > maxGap){
+                            angleAtMaxGap = coneStart + normalizedSiblings[normalizedSiblings.length - 1] + lastGap / 2;
                         }
                         bestAngle = angleAtMaxGap;
                     }
@@ -648,7 +1150,18 @@
                 const initialX = parent.x + initialPlacementRadius * Math.cos(bestAngle);
                 const initialY = parent.y + initialPlacementRadius * Math.sin(bestAngle);
 
-                newNode = {id: nextId++, name, depth, children: [], x: initialX, y: initialY, color: finalColor };
+                newNode = {
+                    id: nextId++, 
+                    name: isListType ? (listContent || 'New List') : name, 
+                    depth, 
+                    children: [], 
+                    x: initialX, 
+                    y: initialY, 
+                    color: finalColor,
+                    isListNode: false,
+                    listType: undefined,
+                    listItems: undefined
+                };
                 nodes.push(newNode);
 
                 links.push({ 
@@ -656,135 +1169,274 @@
                     targetDistance: targetDistance,
                     cp_dx_factor: (Math.random() - 0.5) * 0.4, cp_dy_factor: (Math.random() - 0.5) * 0.4
                 });
-                if(!parent.children) parent.children = [];
                 parent.children.push(newNode);
             }
-            historyStack.push(newNode);
+
+            if (newNode) {
+                historyStack.push(newNode);
+            }
+            
             updateGraph();
-            triggerProactiveSuggestions(newNode);
+            simulation.alpha(0.15).restart(); // Gentler restart for less float
+            optimizeView();
             return newNode;
         }
 
         function removeNode(nodeToRemove) {
             if (!nodeToRemove) return;
+
+            // Find parent before links are filtered, so we can update its children array
+            const parentLink = links.find(l => l.target.id === nodeToRemove.id);
+            const parentNode = parentLink ? parentLink.source : null;
+
             const nodesToDelete = new Set([nodeToRemove.id]);
-            const findDescendants = (nodeId) => links.filter(l => l.source.id === nodeId).forEach(l => {
-                nodesToDelete.add(l.target.id);
-                findDescendants(l.target.id);
-            });
+            const findDescendants = (nodeId) => {
+                links.filter(l => l.source.id === nodeId).forEach(l => {
+                    nodesToDelete.add(l.target.id);
+                    findDescendants(l.target.id);
+                });
+            };
             findDescendants(nodeToRemove.id);
+
             nodes = nodes.filter(n => !nodesToDelete.has(n.id));
             links = links.filter(l => !nodesToDelete.has(l.source.id) && !nodesToDelete.has(l.target.id));
+
+            // *** FIX ***: Correctly remove the node from its parent's children array
+            if (parentNode && parentNode.children) {
+                parentNode.children = parentNode.children.filter(child => child.id !== nodeToRemove.id);
+            }
+
             if (selectedNode && nodesToDelete.has(selectedNode.id)) {
                 selectedNode = null;
+                nodeInput.placeholder = nodes.length > 0 ? 'Select a node to continue.' : 'Enter your central idea...';
                 summarizeBtn.style.display = 'none';
                 elaborateBtn.style.display = 'none';
             }
-            updateGraph();
-        }
-
-        function selectNode(d) {
-            selectedNode = d;
-            updateGraph();
             
-            if (isPrimedForChild) {
-                nodeInput.placeholder = `Add child to "${d.name}" (Press Enter)...`;
-            } else {
-                nodeInput.placeholder = `Sibling (Enter) or Child (Shift+Enter) of "${d.name}"...`;
-            }
+            updateGraph();
+            simulation.alpha(0.15).restart(); // Gentler restart for less float
+            optimizeView();
         }
 
         function handleNodeClick(event, d) {
-            event.stopPropagation();
-            selectNode(d);
+            if (event && event.sourceEvent) event.sourceEvent.stopPropagation();
+            else if (event) event.stopPropagation();
+            
+            if (activeExpandedNode) closeExpandedView(activeExpandedNode);
+
+            // Exit list entry mode if clicking a different node
+            if (isListEntryMode && activeListNode && activeListNode.id !== d.id) {
+                exitListEntryMode();
+            }
+
+            // Only update selection and UI, do not call updateGraph or restart simulation
+            if (selectedNode) {
+                nodeGroup.selectAll('.node').filter(n => n.id === selectedNode.id).classed('selected', false);
+            }
+            selectedNode = d;
+            isPrimedForChild = true;
+
+            if (selectedNode) {
+                nodeGroup.selectAll('.node').filter(n => n.id === selectedNode.id).classed('selected', true);
+                summarizeBtn.style.display = 'inline-block';
+                elaborateBtn.style.display = 'inline-block';
+                
+                // Update placeholder based on whether we're in list entry mode
+                if (isListEntryMode && activeListNode && activeListNode.id === d.id) {
+                    nodeInput.placeholder = `Add list item to "${d.name}"...`;
+                } else {
+                    nodeInput.placeholder = `Add a child to "${d.name}"...`;
+                }
+            }
             nodeInput.focus();
         }
         
         function handleNodeDoubleClick(event, d) {
             if (event) event.stopPropagation();
             
-            // Collapse any other expanded node
-            nodes.forEach(n => {
-                if (n.isExpanded && n.id !== d.id) {
-                    n.isExpanded = false;
-                }
-            });
+            // Don't allow expanding list nodes or the central node
+            if (d.isListNode || d.depth === 0) return;
 
-            // Toggle the current node's expanded state
-            d.isExpanded = !d.isExpanded;
-
-            // Pin the node in place when expanded
-            if(d.isExpanded) {
-                d.fx = d.x;
-                d.fy = d.y;
+            if (activeExpandedNode && activeExpandedNode.id !== d.id) {
+                closeExpandedView(activeExpandedNode, () => openExpandedView(d));
+            } else if (d.isExpanded) {
+                closeExpandedView(d);
             } else {
-                d.fx = null;
-                d.fy = null;
+                openExpandedView(d);
             }
-
-            updateGraph();
-            simulation.alpha(1).restart();
-            centerOnNode(d);
         }
         
+        // --- Event Listeners ---
         nodeInput.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' || !nodeInput.value.trim()) return;
+            if (event.key !== 'Enter') return;
             event.preventDefault();
-
-            saveToHistory();
-
-            // Collapse any expanded node before adding a new one
-            let needsUpdate = false;
-            nodes.forEach(n => {
-                if (n.isExpanded) {
-                    n.isExpanded = false;
-                    n.fx = null;
-                    n.fy = null;
-                    needsUpdate = true;
-                }
-            });
-
             const text = nodeInput.value.trim();
+            if (!text) return;
+
             let newNode;
 
-            // First node creation
-            if (!selectedNode) {
-                newNode = addNode(text, null);
-            }
-            // If a node is selected, handle primed vs. standard mode
-            else {
-                if (isPrimedForChild) {
-                    // In primed state, Enter always adds a child
-                    newNode = addNode(text, selectedNode);
-                    isPrimedForChild = false; // Exit primed state
-                } else {
-                    // In standard state, depends on Shift key
-                    let parentNode;
-                    if (event.shiftKey) {
-                        // Shift+Enter = Add Child
-                        parentNode = selectedNode;
-                    } else {
-                        // Enter = Add Sibling
-                        const parentLink = links.find(l => l.target.id === selectedNode.id);
-                        parentNode = parentLink ? parentLink.source : null;
+            // Handle list entry mode
+            if (isListEntryMode && activeListNode) {
+                // Add item to the active list node
+                activeListNode.listItems.push({
+                    text: text,
+                    checked: activeListNode.listType === 'task' ? false : undefined,
+                    id: Date.now() // Simple ID for tracking
+                });
+                nodeInput.value = '';
+                
+                // Trigger smooth resize animation by updating the graph
+                updateGraph();
+                
+                // Optional: Add a subtle flash effect to indicate the new item was added
+                setTimeout(() => {
+                    const listContainer = nodeGroup.selectAll(".node")
+                        .filter(d => d.id === activeListNode.id)
+                        .select('foreignObject')
+                        .select('.list-node-container');
+                    
+                    if (!listContainer.empty()) {
+                        listContainer.style('background-color', d3.color(activeListNode.color).brighter(0.3).toString())
+                            .transition()
+                            .duration(300)
+                            .style('background-color', d3.color(activeListNode.color).copy({opacity: 0.9}).toString());
                     }
-                    if (parentNode) {
-                        newNode = addNode(text, parentNode);
-                    }
-                }
+                }, 50);
+                
+                return;
             }
 
-            if (newNode) {
-                isPrimedForChild = false; // Enter standard mode after any creation
-                selectNode(newNode);
+            // Check if this is a list type entry
+            const listTypeMatch = text.match(/^(- |1\. |\[\] )(.*)/);
+            const isListType = listTypeMatch !== null;
+            
+            // If trying to create a list and a node is selected, transform it
+            if (isListType && selectedNode && !selectedNode.isListNode && selectedNode.depth > 0) {
+                // Transform the selected node into a list node (but not the central node)
+                let listType = null;
+                let listContent = listTypeMatch[2];
+                
+                if (listTypeMatch[1] === '- ') listType = 'bullet';
+                else if (listTypeMatch[1] === '1. ') listType = 'numbered';
+                else if (listTypeMatch[1] === '[] ') listType = 'task';
+                
+                selectedNode.isListNode = true;
+                selectedNode.listType = listType;
+                selectedNode.listItems = [];
+                
+                // Add the first item if there's content
+                if (listContent) {
+                    selectedNode.listItems.push({
+                        text: listContent,
+                        checked: listType === 'task' ? false : undefined,
+                        id: Date.now()
+                    });
+                }
+                
+                // Enter list entry mode
+                isListEntryMode = true;
+                activeListNode = selectedNode;
                 nodeInput.value = '';
-                nodeInput.focus();
-            } else if (needsUpdate) {
-                updateGraph(); // Update if a node was collapsed but no new node was made
+                nodeInput.placeholder = `Add list item to "${selectedNode.name}"...`;
+                
+                updateGraph();
+                // Also apply a gentle restart here for consistency
+                simulation.alpha(0.08).restart();
+                return;
+            }
+
+            if (nodes.length === 0) {
+                // Case 1: Create the first node
+                newNode = addNode(text, null);
+                if (newNode) {
+                    handleNodeClick(null, newNode); // Select it and prime it for a child
+                    nodeInput.value = '';
+                }
+            } else if (selectedNode) {
+                // Case 2: A node is selected, decide what to create
+                if (isPrimedForChild) {
+                    // It was primed, so Enter creates a child.
+                    newNode = addNode(text, selectedNode);
+                } else {
+                    // Standard mode: Shift+Enter for child, Enter for sibling.
+                    if (event.shiftKey) {
+                        newNode = addNode(text, selectedNode); 
+                    } else {
+                        const parentLink = links.find(l => l.target.id === selectedNode.id);
+                        // If root is selected, create a child. Otherwise, create a sibling.
+                        const parent = parentLink ? parentLink.source : selectedNode;
+                        newNode = addNode(text, parent);
+                    }
+                }
+
+                if (newNode) {
+                    // Clear input first
+                    nodeInput.value = '';
+                    
+                    // Select the new node. This will correctly prime it for the moment.
+                    handleNodeClick(null, newNode);
+                    
+                    // For the next interaction, we always want to be in standard mode
+                    // after any key-based creation (unless we entered list mode).
+                    if (!isListEntryMode) {
+                        isPrimedForChild = false;
+                        nodeInput.placeholder = `Add sibling (Enter), or child (Shift+Enter)...`;
+                    }
+                }
             }
         });
 
         d3.select("body").on("keydown", (event) => {
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+                // Exit list entry mode on navigation
+                if (isListEntryMode) {
+                    exitListEntryMode();
+                }
+                
+                if (!selectedNode) {
+                    return;
+                }
+                event.preventDefault();
+
+                let newSelection = null;
+                const parentLink = links.find(l => l.target.id === selectedNode.id);
+                const parent = parentLink ? parentLink.source : null;
+
+                if (event.key === 'ArrowLeft') {
+                    if (parent) newSelection = parent;
+                } 
+                else if (event.key === 'ArrowRight') {
+                    if (selectedNode.children && selectedNode.children.length > 0) {
+                        newSelection = selectedNode.children[0];
+                    }
+                } 
+                else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    if (parent && parent.children && parent.children.length > 1) {
+                        const siblings = parent.children;
+                        const currentIndex = siblings.findIndex(s => s.id === selectedNode.id);
+                        const numSiblings = siblings.length;
+                        let nextIndex;
+
+                        if (event.key === 'ArrowUp') {
+                            nextIndex = (currentIndex - 1 + numSiblings) % numSiblings;
+                        } else { // ArrowDown
+                            nextIndex = (currentIndex + 1) % numSiblings;
+                        }
+                        newSelection = siblings[nextIndex];
+                    }
+                }
+
+                if (newSelection) {
+                    handleNodeClick(null, newSelection);
+                    // Removed nodeInput.focus() here to prevent potential twitching on navigation
+                }
+                return; // Navigation was handled, stop further processing
+            }
+
+            // --- Prevent other actions if input is focused ---
+            if(document.activeElement === nodeInput) return;
+
+            // --- Undo Logic (Ctrl+Z / Cmd+Z) ---
             if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
                 event.preventDefault();
                 const lastNodeAdded = historyStack.pop();
@@ -794,7 +1446,8 @@
                 }
                 return; 
             }
-            if(document.activeElement === nodeInput) return;
+            
+            // --- Delete Node Logic (Delete / Backspace) ---
             if(selectedNode && (event.key === 'Delete' || event.key === 'Backspace')){
                 event.preventDefault();
                 removeNode(selectedNode);
@@ -806,157 +1459,191 @@
         async function callProactiveGemini(context, latestEntry) { /* ... same as before ... */ }
         summarizeBtn.addEventListener('click', async () => { /* ... same as before ... */ });
         elaborateBtn.addEventListener('click', async () => { /* ... same as before ... */ });
-        function flashNode(nodeId) { /* ... same as before ... */ }
+        function flashNode(nodeId) {
+            const nodeToFlash = node.filter(d => d.id === nodeId);
+            // ... existing code ...
+        }
         function displayAiSuggestions(suggestions) { /* ... same as before ... */ }
         function displayAiResponse(text, title) { /* ... same as before ... */ }
         
         function dragstarted(event, d) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
+            // Store starting position to distinguish clicks from drags
+            d.startX = event.x;
+            d.startY = event.y;
+            isDragging = false; // Reset flag
+            
+            // Store initial distances for all connected links
+            const connectedLinks = links.filter(l => l.source.id === d.id || l.target.id === d.id);
+            connectedLinks.forEach(link => {
+                link.initialDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
+            });
         }
         function dragged(event, d) {
-            const parentLink = links.find(l => l.target.id === d.id);
-            if (parentLink) {
-                const parent = parentLink.source;
-                const maxDragDistance = parentLink.targetDistance * 1.5; // Can drag 50% further than resting state
-                const currentDistance = Math.hypot(event.x - parent.x, event.y - parent.y);
-                
-                if (currentDistance > maxDragDistance) {
-                    // If too far, clamp position to the max radius
-                    const angle = Math.atan2(event.y - parent.y, event.x - parent.x);
-                    d.fx = parent.x + maxDragDistance * Math.cos(angle);
-                    d.fy = parent.y + maxDragDistance * Math.sin(angle);
-                } else {
-                    // Otherwise, drag freely
-                    d.fx = event.x;
-                    d.fy = event.y;
+            if (!isDragging) {
+                const dx = event.x - d.startX;
+                const dy = event.y - d.startY;
+                // Only start a "real" drag if the mouse moves more than 3px
+                if (dx * dx + dy * dy > 9) {
+                    isDragging = true;
+                    // Gentle simulation heating for space-like feel
+                    if (!event.active) simulation.alphaTarget(0.1).restart(); // Much gentler alpha target
+                    simulation.force("link").strength(0.2); // Weaker link stiffening during drag
                 }
-            } else { // For the root node, which has no parent link
-                 d.fx = event.x;
-                 d.fy = event.y;
+            }
+            
+            if (isDragging) {
+                // Pin node position during drag
+                d.fx = event.x;
+                d.fy = event.y;
             }
         }
         function dragended(event, d) {
-            if (!event.active) simulation.alphaTarget(0);
-            if(d.depth !== 0) { 
-                d.fx = null;
-                d.fy = null;
-            }
-            
-            // Find links where the dragged node is either a source or a target
-            const connectedLinks = links.filter(l => l.source.id === d.id || l.target.id === d.id);
-            
-            connectedLinks.forEach(link => {
-                const postDragDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
-                const originalDistance = link.targetDistance;
-                const changeInDist = postDragDistance - originalDistance;
-
-                // The new resting distance will be the original distance plus only 20% of the change.
-                // This makes it spring back much more, feeling less stretchy.
-                const newTargetDistance = originalDistance + (changeInDist * 0.2);
+            if (!isDragging) {
+                // --- THIS IS A CLICK ---
+                handleNodeClick(event, d);
+            } else {
+                // --- THIS WAS A DRAG ---
+                if (!event.active) {
+                    simulation.alphaTarget(0.02); // Gentle cooldown instead of stopping completely
+                }
+                simulation.force("link").strength(0.08); // Return to the new, weaker base strength
                 
-                link.targetDistance = Math.max(40, newTargetDistance); // Ensure a minimum distance
-            });
-
-            if (connectedLinks.length > 0) {
-                // The simulation needs to be told to use the new distances
+                // Un-pin the node to let the simulation place it, respecting the new link distance
+                if (d.depth !== 0) {
+                    d.fx = null;
+                    d.fy = null;
+                }
+                
+                const connectedLinks = links.filter(l => l.source.id === d.id || l.target.id === d.id);
+                connectedLinks.forEach(link => {
+                    const postDragDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
+                    const initialDistance = link.initialDistance || link.targetDistance;
+                    const distanceChange = postDragDistance - initialDistance;
+                    
+                    if (distanceChange > 0) {
+                        // Stretched: learn 60% of the new distance for a looser feel
+                        link.targetDistance = Math.max(40, link.targetDistance + (distanceChange * 0.6));
+                    } else if (distanceChange < 0) {
+                        // Contracted: learn only 30% of the contracted distance
+                        const contractionAmount = Math.abs(distanceChange);
+                        link.targetDistance = Math.max(40, link.targetDistance - (contractionAmount * 0.3));
+                    }
+                    
+                    // Clean up the initial distance tracking
+                    delete link.initialDistance;
+                });
                 simulation.force("link").distance(l => l.targetDistance);
-                simulation.alpha(0.5).restart();
             }
+            // Clean up start positions
+            delete d.startX;
+            delete d.startY;
         }
         
         // --- Initial State ---
         window.addEventListener('resize', optimizeView);
         applyTheme();
         nodeInput.focus(); // Set focus on the input field on load
-        d3.timer(() => simulation.alpha(0.01));
+        d3.timer(() => simulation.alpha(0.008)); // Even gentler baseline alpha for floating feel
+        
+        // Initialize dynamic font sizes
+        setTimeout(() => updateDynamicFontSizes(), 100);
 
         svg.on('click', (event) => {
             // Check if we clicked on the background, not a node
-            if (event.target === svg.node()) {
-                let needsUpdate = false;
-                nodes.forEach(n => {
-                    if (n.isExpanded) {
-                        n.isExpanded = false;
-                        n.fx = null; // Unpin
-                        n.fy = null;
-                        needsUpdate = true;
-                    }
-                });
-                if (needsUpdate) updateGraph();
+            if (event.target !== container && event.target !== svg.node()) return;
+            
+            if (activeExpandedNode) {
+                closeExpandedView(activeExpandedNode);
+            }
+
+            if (selectedNode) {
+                nodeGroup.selectAll('.node').filter(n => n.id === selectedNode.id).classed('selected', false);
+                selectedNode = null;
+                isPrimedForChild = false;
+                nodeInput.placeholder = nodes.length > 0 ? 'Select a node to continue.' : 'Enter your central idea...';
+                summarizeBtn.style.display = 'none';
+                elaborateBtn.style.display = 'none';
             }
         });
 
         nodeInput.addEventListener('focus', () => {
-            isPrimedForChild = false;
+            if (activeExpandedNode) {
+                closeExpandedView(activeExpandedNode);
+            }
         });
 
         function saveToHistory() {
             // TODO: In-depth history implementation for undo/redo
         }
 
+        function openExpandedView(d) {
+            activeExpandedNode = d;
+            d.isExpanded = true;
+            d.fx = d.x;
+            d.fy = d.y;
+            updateGraph();
+            centerOnNode(d);
+        }
+
+        function closeExpandedView(d, callback) {
+            if (!d || !d.isExpanded) {
+                if(callback) callback();
+                return;
+            }
+            activeExpandedNode = null;
+            d.isExpanded = false;
+            d.wasExpanded = true;
+            d.fx = null;
+            d.fy = null;
+
+            // The actual animation is handled in updateGraph now
+            updateGraph();
+            
+            // Zoom out camera during the transition
+            optimizeView();
+            
+            // Wait for the animation to complete before calling callback
+            if (callback) {
+                setTimeout(callback, 600);
+            }
+        }
+
         function handleBackgroundClick(event) {
-            if ((event.target !== container && event.target !== svg.node()) || isAnimatingExit) return;
+            if (event.target !== container && event.target !== svg.node()) return;
+            
+            if (activeExpandedNode) {
+                closeExpandedView(activeExpandedNode);
+            }
 
-            const expandedNode = nodes.find(d => d.isExpanded);
-            if (expandedNode) {
-                isAnimatingExit = true;
+            // Exit list entry mode
+            if (isListEntryMode) {
+                exitListEntryMode();
+            }
 
-                const nodeElement = nodeGroup.selectAll('.node').filter(n => n === expandedNode);
-
-                if (nodeElement.empty() || nodeElement.select('foreignObject').empty()) {
-                    isAnimatingExit = false;
-                    expandedNode.isExpanded = false;
-                    expandedNode.fx = null;
-                    expandedNode.fy = null;
-                    updateGraph();
-                    simulation.alpha(1).restart();
-                    centerOnNode(expandedNode);
-                    return;
-                }
-
-                // Calculate the target radius based on node depth
-                const targetRadius = expandedNode.depth === 0 ? 70 : (expandedNode.depth === 1 ? 40 : 25);
-                
-                // First, make the circle visible again but still at radius 0
-                nodeElement.select('circle')
-                    .style('opacity', 1)
-                    .attr('r', 0);
-                
-                // Animate the foreignObject shrinking
-                nodeElement.select('foreignObject')
-                    .transition()
-                    .duration(400)
-                    .ease(d3.easeCubicOut)
-                    .attr('x', -targetRadius)
-                    .attr('y', -targetRadius)
-                    .attr('width', targetRadius * 2)
-                    .attr('height', targetRadius * 2)
-                    .style('opacity', 0)
-                    .on('end', () => {
-                        expandedNode.isExpanded = false;
-                        expandedNode.isClosing = true;
-                        expandedNode.fx = null;
-                        expandedNode.fy = null;
-                        updateGraph();
-                        simulation.alpha(1).restart();
-                        centerOnNode(expandedNode);
-                        isAnimatingExit = false;
-                    });
+            if (selectedNode) {
+                nodeGroup.selectAll('.node').filter(n => n.id === selectedNode.id).classed('selected', false);
+                selectedNode = null;
+                isPrimedForChild = false;
+                nodeInput.placeholder = nodes.length > 0 ? 'Select a node to continue.' : 'Enter your central idea...';
+                summarizeBtn.style.display = 'none';
+                elaborateBtn.style.display = 'none';
             }
         }
 
         function centerOnNode(d) {
-            const foWidth = 300;
-            const foHeight = 200;
+            const foWidth = Math.min(280, container.clientWidth * 0.25);
+            const foHeight = Math.min(180, container.clientHeight * 0.3);
 
             const width = svg.node().clientWidth;
             const height = svg.node().clientHeight;
             
-            // For expanded nodes, calculate scale to make it fill 1/3 of the screen
+            // For expanded nodes, calculate scale to ensure it fits comfortably on screen
             const scale = d.isExpanded ? 
-                Math.min(width / (foWidth * 3), height / (foHeight * 3)) : 
+                Math.min(
+                    width / (foWidth * 2.5), 
+                    height / (foHeight * 2.5),
+                    1.2 // Max scale to prevent too much zoom
+                ) : 
                 1.0; // Default scale when not expanded
 
             const transform = d3.zoomIdentity
@@ -965,8 +1652,17 @@
                 .translate(-d.x, -d.y);
 
             svg.transition()
-                .duration(750)
-                .call(zoom.transform, transform);
+                .duration(600) // Reduced transition duration
+                .call(zoom.transform, transform)
+                .on('end', updateDynamicFontSizes);
+        }
+
+        function exitListEntryMode() {
+            isListEntryMode = false;
+            activeListNode = null;
+            if (selectedNode) {
+                nodeInput.placeholder = `Add a child to "${selectedNode.name}"...`;
+            }
         }
     </script>
 </body>
