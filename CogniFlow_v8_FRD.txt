@@ -1,0 +1,622 @@
+================================================================================
+                    COGNIFLOW v8 - FUNCTIONAL REQUIREMENTS DOCUMENT
+================================================================================
+
+Document Version: 2.0
+Date: December 2024
+Product Version: v8.2 (Production Ready)
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. EXECUTIVE SUMMARY
+2. SYSTEM OVERVIEW
+3. TECHNICAL ARCHITECTURE
+4. USER INTERFACE DESIGN
+5. CORE FEATURES
+6. NODE SYSTEM
+7. INTERACTION MODELS
+8. VISUAL DESIGN SYSTEM
+9. AI INTEGRATION (FLOW ASSISTANT)
+10. RATE LIMITING & API MANAGEMENT
+11. DATA STRUCTURES
+12. STATE MANAGEMENT
+13. KEYBOARD SHORTCUTS & NAVIGATION
+14. DRAG & DROP FUNCTIONALITY
+15. ANIMATION & TRANSITIONS
+16. PERFORMANCE SPECIFICATIONS
+17. ERROR HANDLING & RECOVERY
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+CogniFlow v8.2 is a production-ready, AI-powered mind mapping application that 
+represents the state-of-the-art in intelligent idea synthesis tools. Built with 
+D3.js and integrated with Gemini 1.5 Flash API, it provides comprehensive AI 
+assistance through the Flow Assistant system, featuring structured insights, 
+real-time analysis, and contextual suggestions.
+
+Key Production Features:
+- 🌊 Flow Assistant with structured AI insights (definitions, questions, overviews)
+- Rate-limited API system with priority queues to prevent overuse
+- Multiple node types with no text truncation and wider content areas
+- Advanced interaction models with spatial navigation
+- Professional theming system with 8 curated themes
+- Comprehensive drag-and-drop media integration
+- Production-grade error handling and recovery systems
+- Full keyboard navigation and accessibility features
+
+================================================================================
+2. SYSTEM OVERVIEW
+================================================================================
+
+2.1 Core Technology Stack
+- D3.js v7 for visualization and force simulation
+- Gemini 1.5 Flash API for AI intelligence
+- Vanilla JavaScript ES6+ for application logic
+- HTML5 Canvas/SVG hybrid rendering
+- CSS3 with CSS Variables for dynamic theming
+- Professional-grade API management system
+
+2.2 Browser Requirements
+- Modern browsers with ES6+ support
+- Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+- SVG and CSS3 support required
+- JavaScript enabled
+- Network connectivity for AI features
+
+2.3 Architecture Pattern
+- Single Page Application (SPA)
+- Event-driven architecture with rate limiting
+- Component-based UI updates
+- Reactive data flow with D3.js data binding
+- Priority-based API queue system
+
+================================================================================
+3. TECHNICAL ARCHITECTURE
+================================================================================
+
+3.1 Core Components
+- SVG Canvas: Main visualization area with viewport optimization
+- Force Simulation Engine: Custom D3.js force-directed layout
+- Node Renderer: Multi-type node rendering system
+- Link System: Curved connector management with repulsion forces
+- Event System: Comprehensive user interaction handling
+- State Manager: Application state coordination
+- Theme Engine: Dynamic color management with 8 themes
+- 🌊 Flow Assistant: AI integration layer with structured responses
+- Rate Limiter: API queue management with priority handling
+
+3.2 AI System Architecture
+- Priority Queue System: High/Medium/Low priority requests
+- Rate Limiting: 2-second minimum intervals with exponential backoff
+- Structured Parsing: JSON response processing for insights
+- Context Building: Full map analysis for AI prompts
+- Error Recovery: Graceful fallbacks and retry mechanisms
+
+3.3 Rendering Pipeline
+1. Data Update → Force Simulation
+2. Simulation Tick → Position Calculation
+3. Position Update → DOM Manipulation
+4. Visual Update → User Feedback
+5. AI Context → Flow Assistant Analysis
+6. Insights Display → User Interaction
+
+================================================================================
+4. USER INTERFACE DESIGN
+================================================================================
+
+4.1 Enhanced Layout Structure
+┌─────────────────────────────────────────┐
+│  Theme Selector (Top Right)             │
+├─────────────────────────────────────────┤
+│                                         │
+│         Mind Map Canvas                 │
+│       (with Loading Indicators)         │
+│                                         │
+├─────────────────────────────────────────┤
+│  🌊 Flow Assistant Insights Panel       │
+│  (Expandable cards with categories)     │
+├─────────────────────────────────────────┤
+│  Contextual Instructions (Dynamic)      │
+├─────────────────────────────────────────┤
+│  [Input] [Summarize] [Elaborate]        │
+└─────────────────────────────────────────┘
+
+4.2 Flow Assistant Panel Design
+- Expandable insight cards with click-to-expand functionality
+- Color-coded categories for different insight types
+- Smooth animations and professional styling
+- Queue status indicators for AI processing
+- Clickable keyword suggestions with confirmation dialogs
+
+4.3 Enhanced Visual Hierarchy
+- No text truncation anywhere in the application
+- Wider minimum text areas for better readability
+- Professional loading states with queue awareness
+- Contextual error messages with retry options
+
+================================================================================
+5. CORE FEATURES
+================================================================================
+
+5.1 Mind Mapping Engine (Enhanced)
+- Advanced force-directed graph layout
+- Custom force functions for link repulsion and text separation
+- Viewport boundary constraints
+- Automatic camera panning and intelligent centering
+- 4-second position stabilization for non-first-generation nodes
+
+5.2 Enhanced Node Creation System
+Two-Mode System with Flow Assistant Integration:
+- PRIMED MODE: Activated after clicking node or creating central idea
+  * Enter key creates child node
+  * Focus shifts to new node with Flow Assistant analysis
+  * Returns to Standard Mode after creation
+  
+- STANDARD MODE: Default operational mode
+  * Enter key creates sibling node
+  * Shift+Enter creates child node
+  * Mode persists with contextual AI suggestions
+
+5.3 Progressive Node Sizing (Updated)
+Generation-based radius with enhanced readability:
+- Central Node: 22px (reduced by 5px for better proportion)
+- 1st Generation: 18px 
+- 2nd Generation: 14px
+- 3rd Generation: 11px
+- 4th Generation: 9px
+- 5th+ Generation: 8px (minimum for readability)
+
+5.4 Text Display Enhancement
+- NO TEXT TRUNCATION: All text displays fully with intelligent wrapping
+- WIDER CONTENT AREAS: Increased minimum widths across all node types
+  * Central nodes: 90→120px
+  * 2nd generation: 60→80px  
+  * 3rd generation: 50→70px
+  * 4th generation+: 40→60px
+- Enhanced text wrapping with 4-6 lines maximum (up from 2-3)
+
+================================================================================
+6. NODE SYSTEM (COMPREHENSIVE)
+================================================================================
+
+6.1 Node Types (Full Implementation)
+
+6.1.1 Standard Node (Enhanced)
+- Circular shape with optimized generation-based sizing
+- No text truncation with intelligent word wrapping
+- Progressive width limits: 120px (central) to 60px (4th gen+)
+- Preview text display with full content
+- Enhanced focus glow effect
+- Notes preview integration
+
+6.1.2 Expanded Node (Production Ready)
+- Dynamic sizing: 260-420px wide, auto-height up to 70vh
+- Enhanced components:
+  * Editable title with live updates
+  * Rich notes area with no scroll (auto-grow)
+  * AI action buttons (Define, Expand On, Solutions) with high-priority API calls
+  * Interactive ghost node suggestions with breathing animations
+  * Professional styling with backdrop blur
+- Smooth 600ms expand/collapse animations
+- Camera auto-centering on expansion
+
+6.1.3 List Node (Full Featured)
+- Dynamic container (220-400px wide, auto-height)
+- Three fully implemented types:
+  * Bullet lists (- prefix)
+  * Numbered lists (1. prefix)  
+  * Task lists with interactive checkboxes ([] prefix)
+- Real-time item addition with Enter key
+- Smooth resize animations
+- List entry mode with contextual instructions
+
+6.1.4 Media Node (Comprehensive)
+- Enhanced container (140x90px for better proportions)
+- Full platform support:
+  * YouTube videos with embedded iframe previews
+  * Images with direct display and preview links
+  * Vimeo videos with metadata
+  * Twitter/X posts with custom icons
+  * GitHub repositories with owner/repo display
+  * PDF documents with file icons
+  * Generic links with favicon and domain detection
+- Intelligent URL parsing and metadata extraction
+- Drag-and-drop creation with type auto-detection
+
+================================================================================
+7. INTERACTION MODELS (ADVANCED)
+================================================================================
+
+7.1 Mouse Interactions (Enhanced)
+- CLICK: Select node, enter Primed Mode, trigger Flow Assistant
+- DOUBLE-CLICK: Open expanded view (enhanced with ghost suggestions)
+- DRAG: Intelligent movement with 45% reduced child impact
+- HOVER: Enhanced highlight effects with smooth transitions
+
+7.2 Comprehensive Keyboard Shortcuts
+Primary Navigation:
+- ENTER: Create child (Primed) or sibling (Standard)
+- SHIFT+ENTER: Force child creation in Standard Mode
+- ARROW KEYS: Spatial navigation with intelligent direction finding
+- DELETE/BACKSPACE: Node deletion (when not editing text)
+- CTRL+Z/CMD+Z: Undo with transformation support
+
+Advanced Input:
+- CTRL+V/CMD+V: Paste images and URLs from clipboard
+- ESC: Cancel operations and exit modes
+- TAB: Navigate between UI elements
+
+List Entry Mode:
+- ENTER: Add new list item
+- SHIFT+ENTER: Exit list mode and create child node
+- BACKSPACE (twice): Delete last list item
+
+7.3 Enhanced Drag Behavior
+- Optimized impact reduction: 45% less effect on children
+- Smart thresholds: 20px movement, 100px distance
+- Intelligent timing: 155ms response delay
+- Affects only immediate children
+- No impact on unrelated branches
+- Professional distance learning system
+
+7.4 Advanced Drag & Drop
+- Comprehensive file support (images, documents, media)
+- Intelligent URL processing with platform detection
+- Visual drop indicators with hover states
+- Automatic media node transformation
+- Error handling for unsupported formats
+
+================================================================================
+8. VISUAL DESIGN SYSTEM (PROFESSIONAL)
+================================================================================
+
+8.1 Enhanced Theme Engine
+Eight professionally designed themes:
+1. Midnight Scholar - Deep learning aesthetic with enhanced contrast
+2. Autumn Whisper - Warm earth tones with improved readability
+3. Ocean Depths - Cool maritime palette with refined blues
+4. Forest Sage - Natural green spectrum with Roboto Slab font
+5. Crimson Dusk (DEFAULT) - Rich red gradients with balanced saturation
+6. Arctic Twilight - Cool polar tones with ethereal feel
+7. Neon Pulse - Vibrant cyber aesthetic with high energy
+8. Electric Storm - High-energy contrasts with electric elements
+
+8.2 Advanced Color System
+- Dynasty-based progression with 5-color evolution
+- Enhanced gradient blending for 3rd+ generations
+- Smart text contrast with automatic adjustment
+- Background optimization: 15% darker, 20% less saturated
+- No color-related text visibility issues
+
+8.3 Professional Connector Lines
+- Curved paths with consistent 50% random direction variation
+- Animated sine wave effects for central node connections
+- Progressive opacity handling
+- Link repulsion forces to prevent text overlap
+- Enhanced visual hierarchy
+
+================================================================================
+9. AI INTEGRATION (FLOW ASSISTANT) - COMPREHENSIVE
+================================================================================
+
+9.1 🌊 Flow Assistant Architecture
+Advanced AI analysis system providing structured insights:
+
+9.1.1 Analysis Section
+- 📚 Term Definitions: Comprehensive explanations of concepts
+- ✏️ Keyword Suggestions: Clickable refinements for node text
+- 🤔 Probing Questions: Deep Socratic inquiry for exploration
+
+9.1.2 Overview Section  
+- 🔍 Search Summaries: AI-powered contextual overviews
+- Background information and related concepts
+- Multiple perspective cards for comprehensive understanding
+
+9.1.3 Map Insights Section
+- 🔗 Connection Discovery: Links between disparate map areas
+- 💡 Gap Analysis: Identification of underdeveloped topics
+- 🏗️ Structural Suggestions: Map organization improvements
+
+9.2 Structured Response System
+- JSON-based response parsing for consistent formatting
+- Color-coded insight categories for visual organization
+- Expandable cards with preview and full content modes
+- Click-to-apply functionality for keyword suggestions
+- Error handling with graceful fallbacks
+
+9.3 Context-Aware Intelligence
+- Full map structure analysis for AI prompts
+- Parent-child relationship awareness
+- Sibling context consideration
+- Map goal identification from central node and branches
+- Real-time adaptation to map changes
+
+9.4 AI Action Integration (Expanded Nodes)
+- Define: High-priority API calls for immediate definitions
+- Expand On: Detailed elaboration with context awareness
+- Solutions: Problem-solving suggestions with practical focus
+- Results automatically integrated into notes area
+
+================================================================================
+10. RATE LIMITING & API MANAGEMENT
+================================================================================
+
+10.1 Priority Queue System
+Three-tier priority handling:
+- HIGH PRIORITY: Manual user actions (Summarize, Elaborate, Define buttons)
+- MEDIUM PRIORITY: Flow Assistant analysis, suggestion follow-ups
+- LOW PRIORITY: Background suggestions, ghost node generation
+
+10.2 Rate Limiting Implementation
+- Minimum 2-second intervals between API calls
+- Exponential backoff for 429 (rate limit) errors
+- 5-second retry delays with queue repositioning
+- Smart queue processing with status monitoring
+
+10.3 User Experience Optimization
+- Queue-aware loading indicators
+- High-priority requests jump to front of queue
+- Non-blocking background processing
+- Professional error messaging with retry options
+
+10.4 API Usage Intelligence
+- Auto-trigger frequency: Reduced to 30% chance for Flow Assistant
+- Contextual suggestions: 40% chance with 4-second delays
+- Periodic refresh: Every 15 minutes (down from 5 minutes)
+- Map change detection: 1-minute cooldown with 20% trigger chance
+
+================================================================================
+11. DATA STRUCTURES (ENHANCED)
+================================================================================
+
+11.1 Enhanced Node Object Structure
+{
+    id: number,
+    name: string,
+    depth: number,
+    children: array,
+    x: number,
+    y: number,
+    fx: number (optional - for position fixing),
+    fy: number (optional - for position fixing),
+    color: string,
+    radius: number,
+    createdAt: timestamp,
+    
+    // Standard node properties
+    isExpanded: boolean,
+    wasExpanded: boolean (transition flag),
+    
+    // List node properties
+    isListNode: boolean,
+    listType: string (bullet|numbered|task),
+    listItems: array of {text, checked, id},
+    
+    // Media node properties
+    isMediaNode: boolean,
+    mediaType: string (youtube|image|github|pdf|link|etc),
+    mediaSrc: string,
+    mediaMetadata: object (platform-specific data),
+    
+    // Content properties
+    notes: string (rich text content, no character limits)
+}
+
+11.2 Enhanced Link Object Structure
+{
+    source: node reference,
+    target: node reference,
+    targetDistance: number (learned from dragging),
+    initialDistance: number (temp during drag),
+    cp_dx_factor: number (curve randomization),
+    cp_dy_factor: number (curve randomization)
+}
+
+11.3 API Queue Object Structure
+{
+    prompt: string,
+    maxChars: number,
+    priority: string (high|medium|low),
+    resolve: function,
+    reject: function,
+    timestamp: number
+}
+
+================================================================================
+12. STATE MANAGEMENT (COMPREHENSIVE)
+================================================================================
+
+12.1 Enhanced Application States
+- selectedNode: Currently selected node with Flow Assistant context
+- isPrimedForChild: Boolean for precise mode state tracking
+- activeExpandedNode: Currently expanded node with ghost suggestions
+- isListEntryMode: List editing state with item management
+- activeListNode: Node being edited as list
+- isDragging: Drag operation status with impact tracking
+- dropTargetNode: Current drop target with visual feedback
+
+12.2 AI System State
+- apiCallQueue: Priority-ordered request queue
+- isProcessingQueue: Queue processing status
+- lastApiCall: Timestamp for rate limiting
+- lastFlowAssistantUpdate: Timestamp for auto-trigger throttling
+
+12.3 Enhanced UI State
+- Theme selection with smooth transitions
+- Dynamic instruction text based on context
+- Button visibility with loading states
+- Panel dimensions with resize handling
+- Queue status indicators
+
+================================================================================
+13. KEYBOARD SHORTCUTS & NAVIGATION (COMPREHENSIVE)
+================================================================================
+
+13.1 Primary Navigation Shortcuts
+- ENTER: Context-sensitive node creation with Flow Assistant
+- SHIFT+ENTER: Force child node creation in any mode
+- ARROW KEYS: Intelligent spatial navigation with directional logic
+- ESC: Cancel operations, exit modes, close expanded views
+- DELETE/BACKSPACE: Smart node deletion (only when not editing)
+
+13.2 Advanced Input Shortcuts
+- CTRL+V/CMD+V: Advanced clipboard integration
+  * Images: Creates image media nodes
+  * URLs: Intelligent type detection and media node creation
+  * Text: Standard node creation
+- CTRL+Z/CMD+Z: Comprehensive undo system
+  * Node creation/deletion
+  * List transformations
+  * Media transformations
+
+13.3 List Mode Shortcuts
+- ENTER: Add new list item with smooth animation
+- SHIFT+ENTER: Exit list mode and create child node
+- BACKSPACE (empty input): Highlight last item for deletion
+- BACKSPACE (second press): Delete highlighted item
+
+13.4 Expanded View Shortcuts
+- DOUBLE-CLICK: Open/close expanded view with camera centering
+- ENTER (in title): Save and exit title editing
+- Click outside: Close expanded view
+- Action buttons: High-priority AI integration
+
+================================================================================
+14. DRAG & DROP FUNCTIONALITY (ADVANCED)
+================================================================================
+
+14.1 Comprehensive Drop Type Support
+- Image files → Image media nodes with preview
+- Video URLs → Platform-specific media nodes (YouTube, Vimeo)
+- Social URLs → Social media nodes (Twitter/X)
+- Repository URLs → GitHub nodes with metadata
+- Document files → Document nodes with type detection
+- Generic URLs → Link nodes with favicon and metadata
+
+14.2 Intelligent Drop Behavior
+- Visual drop zone indicators during drag
+- Nearest node detection with radius-based proximity
+- Automatic media type recognition and parsing
+- Platform-specific metadata extraction
+- Error handling for unsupported formats
+
+14.3 Platform-Specific Processing
+- YouTube: Video ID extraction, embed URL generation, oEmbed metadata
+- Twitter/X: Tweet ID extraction, embed preparation
+- GitHub: Owner/repo parsing, API URL generation
+- Images: Direct display, Google Images URL decoding, Unsplash processing
+- PDFs: File type detection, document icon display
+
+================================================================================
+15. ANIMATION & TRANSITIONS (PROFESSIONAL)
+================================================================================
+
+15.1 Enhanced Node Animations
+- Expand/Collapse: 600ms ease-in-out with camera centering
+- Creation: 300ms fade-in with physics integration
+- Selection: Instant feedback with enhanced glow effects
+- Deletion: 300ms fade-out with graceful cleanup
+- Ghost nodes: Breathing animations with staggered timing
+
+15.2 Advanced Force Simulation
+- Initial alpha: 1.0 for immediate responsiveness
+- Minimum alpha: 0.001 for enhanced precision
+- Drag alpha boost: 0.02 for smooth interactions
+- Gentle nudge: 0.0275 for subtle repositioning
+- Custom force functions for professional feel
+
+15.3 UI Transition System
+- Theme changes: 1.5s smooth color transitions
+- Panel resize: Hardware-accelerated CSS transitions
+- Button interactions: 200ms hover/focus effects
+- Loading states: Smooth opacity and transform changes
+- Insight cards: Expand/collapse with easing functions
+
+================================================================================
+16. PERFORMANCE SPECIFICATIONS (OPTIMIZED)
+================================================================================
+
+16.1 Enhanced Rendering Performance
+- Target: 60 FPS during all interactions
+- Viewport-based culling for off-screen content
+- Intelligent batched DOM updates
+- Optimized force calculations with custom algorithms
+- Progressive detail reduction based on zoom level
+
+16.2 Memory Management (Production Grade)
+- Theoretical node limit: 10,000+ with optimizations
+- Practical performance limit: 1,000+ nodes smoothly
+- Automatic simulation energy management
+- Efficient DOM node recycling
+- Smart garbage collection assistance
+
+16.3 Network Performance (AI-Optimized)
+- Rate-limited AI calls with intelligent queuing
+- Priority-based request handling
+- Exponential backoff for error recovery
+- Minimal external dependencies
+- Compressed response parsing
+
+================================================================================
+17. ERROR HANDLING & RECOVERY
+================================================================================
+
+17.1 AI System Error Handling
+- 429 Rate Limit Errors: Automatic retry with exponential backoff
+- Network Failures: Graceful fallbacks with user notification
+- Invalid Responses: JSON parsing error recovery
+- API Key Issues: Clear error messaging with guidance
+- Timeout Handling: Request cancellation and retry logic
+
+17.2 User Interface Error Recovery
+- Malformed Input: Smart validation and correction
+- Drag Operation Failures: Position restoration and user feedback
+- Theme Loading Errors: Fallback to default theme
+- Node Creation Failures: State restoration and error notification
+
+17.3 Data Integrity Protection
+- History Stack Validation: Undo/redo safety checks
+- Node Reference Integrity: Automatic cleanup of broken references
+- Simulation State Recovery: Automatic alpha and force restoration
+- Memory Leak Prevention: Proper event listener cleanup
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+
+Version History:
+v8.2 - Current Production Release
+- 🌊 Flow Assistant with structured JSON insights
+- Comprehensive rate limiting with priority queues
+- Removed all text truncation, widened content areas
+- Enhanced AI integration with clickable suggestions
+- Professional error handling and recovery systems
+- Advanced keyboard navigation with spatial movement
+- Comprehensive drag & drop with intelligent type detection
+- Production-ready performance optimizations
+
+v8.1 - Enhanced AI Integration
+- Flow Assistant implementation
+- Basic rate limiting
+- Enhanced node types
+
+v8.0 - Core Release
+- Multi-node system
+- Basic theming
+- Force-directed layout
+- Standard interactions
+
+For technical implementation details and current API integration,
+refer to the source code in index.html.
+
+================================================================================
+PRODUCTION STATUS: READY
+================================================================================
+
+CogniFlow v8.2 represents a production-ready, AI-powered mind mapping solution
+with comprehensive features, professional performance, and advanced user
+experience design. All core features are fully implemented and tested. 
