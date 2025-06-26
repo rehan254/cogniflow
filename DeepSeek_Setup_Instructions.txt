@@ -1,0 +1,54 @@
+🚀 CogniFlow x DeepSeek AI - Setup Instructions
+================================================
+
+CogniFlow has been updated to use DeepSeek AI for enhanced Flow Assistant capabilities!
+
+📋 SETUP STEPS:
+
+1. GET YOUR DEEPSEEK API KEY:
+   • Visit: https://platform.deepseek.com/api_keys
+   • Sign up or log in to your DeepSeek account
+   • Create a new API key
+   • Copy your API key (starts with "sk-...")
+
+2. UPDATE COGNIFLOW:
+   • Open index.html in a text editor
+   • Find line ~113: const DEEPSEEK_API_KEY = 'YOUR_DEEPSEEK_API_KEY_HERE';
+   • Replace 'YOUR_DEEPSEEK_API_KEY_HERE' with your actual API key
+   • Save the file
+
+3. EXAMPLE:
+   BEFORE: const DEEPSEEK_API_KEY = 'YOUR_DEEPSEEK_API_KEY_HERE';
+   AFTER:  const DEEPSEEK_API_KEY = 'sk-1234567890abcdef...';
+
+🔥 DEEPSEEK MODELS USED:
+   • Primary: deepseek-chat (DeepSeek-V3-0324)
+   • Reasoning: deepseek-reasoner (DeepSeek-R1-0528) for complex analysis
+
+✨ NEW FEATURES:
+   • Enhanced reasoning capabilities with DeepSeek-R1
+   • Improved structured response parsing
+   • OpenAI-compatible API format for reliability
+   • Better context understanding for mind mapping
+
+💰 COST INFORMATION:
+   • DeepSeek offers competitive pricing
+   • Free tier available for getting started
+   • Check current rates: https://platform.deepseek.com/pricing
+
+🛡️ SECURITY:
+   • Never share your API key publicly
+   • Keep your API key secure and private
+   • Consider using environment variables for production
+
+🎯 TESTING:
+   • Open CogniFlow in your browser
+   • Create a central node and select it
+   • The Flow Assistant should activate with "Powered by DeepSeek AI" message
+   • Try the Summarize and Elaborate buttons
+
+📞 SUPPORT:
+   • DeepSeek Documentation: https://api-docs.deepseek.com/
+   • DeepSeek Platform: https://platform.deepseek.com/
+
+Happy mind mapping with AI-powered insights! 🧠✨ 

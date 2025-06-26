@@ -488,7 +488,7 @@
             <div id="assistant-welcome" class="assistant-message">
                 <div class="assistant-content">
                     <div class="assistant-name">🌊 Flow Assistant</div>
-                    <div class="assistant-text">Keeping you in the flow of ideas. I'll provide contextual insights and Google overview results to help expand your thinking without interruption.</div>
+                    <div class="assistant-text">Powered by DeepSeek AI. Keeping you in the flow of ideas with contextual insights and intelligent analysis to help expand your thinking without interruption.</div>
             </div>
         </div>
         </div>
@@ -530,8 +530,8 @@
         let dropTargetNode = null;
 
         // --- API Configuration ---
-        const GEMINI_API_KEY = 'AIzaSyCJoAhXZhUeBXpWhUDHu3hbr-pesEWs65k';
-        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+        const DEEPSEEK_API_KEY = 'sk-351b31abac2b48a7a18a087991970a81';
+        const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
         
         // Rate limiting configuration
         let lastApiCall = 0;
@@ -540,7 +540,7 @@
         let isProcessingQueue = false;
 
         // Rate-limited API call with queue system
-        async function callGeminiAPIWithRateLimit(prompt, maxChars = 260, priority = 'low') {
+        async function callDeepSeekAPIWithRateLimit(prompt, maxChars = 260, priority = 'low') {
             return new Promise((resolve, reject) => {
                 apiCallQueue.push({
                     prompt,
@@ -626,10 +626,10 @@
             }
         }
 
-        // Helper function for Gemini API calls - non-blocking
-        async function callGeminiAPI(prompt, maxChars = 260) {
+        // Helper function for DeepSeek API calls - non-blocking
+        async function callDeepSeekAPI(prompt, maxChars = 260) {
             // Use the rate-limited version for better performance
-            return callGeminiAPIWithRateLimit(prompt, maxChars, 'low');
+            return callDeepSeekAPIWithRateLimit(prompt, maxChars, 'low');
         }
 
         // Actual API call implementation
@@ -644,23 +644,23 @@
                     loadingIndicator.style.display = 'block';
                 }
                 
-                const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                const response = await fetch(DEEPSEEK_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
                     },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: limitedPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: maxChars > 500 ? 800 : 100, // More tokens for structured responses
-                            topP: 0.95,
-                            topK: 40
-                        }
+                        model: 'deepseek-chat',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: limitedPrompt
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: maxChars > 500 ? 800 : 200,
+                        top_p: 0.95
                     })
                 });
                 
@@ -673,8 +673,8 @@
                 }
                 
                 const data = await response.json();
-                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    let text = data.candidates[0].content.parts[0].text;
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    let text = data.choices[0].message.content;
                     // Enforce character limit
                     if (text.length > maxChars) {
                         text = text.substring(0, maxChars - 3) + '...';
@@ -684,7 +684,7 @@
                 return null;
             } catch (error) {
                 loadingIndicator.style.display = 'none';
-                console.error('Gemini API error:', error);
+                console.error('DeepSeek API error:', error);
                 throw error; // Re-throw to be handled by queue processor
             }
         }
@@ -769,13 +769,39 @@ Your entire output must be a single, valid JSON object following this structure:
   }
 }`;
 
-                        try {
+            try {
                 // Use rate-limited API call for Flow Assistant
-                return await callGeminiAPIWithRateLimit(
-                    systemPrompt + "\n\n" + userPrompt, 
-                    2000, // Allow more characters for structured response
-                    priority
-                ).then(responseText => {
+                const response = await fetch(DEEPSEEK_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: systemPrompt
+                            },
+                            {
+                                role: 'user',
+                                content: userPrompt
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 2000,
+                        top_p: 0.95
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    const responseText = data.choices[0].message.content;
                     if (responseText) {
                         // Extract JSON from response
                         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -783,44 +809,41 @@ Your entire output must be a single, valid JSON object following this structure:
                             return JSON.parse(jsonMatch[0]);
                         }
                     }
-                    return null;
-                }).catch(error => {
-                    console.error('Flow Assistant structured parsing error:', error);
-                    return null;
-                });
-             } catch (error) {
-                 loadingIndicator.style.display = 'none';
-                 console.error('Flow Assistant API error:', error);
-                 
-                 // Return a helpful error structure for display
-                 return {
-                     error: true,
-                     message: "Flow Assistant is temporarily unavailable. Please check your connection and try again.",
-                     analysis: {
-                         definitions: [],
-                         keywordSuggestion: null,
-                         probingQuestion: "What aspects of this topic would you like to explore further?"
-                     },
-                     overviews: {
-                         searchQueryUsed: contextData.currentNodeText,
-                         results: [
-                             {
-                                 title: "Service Unavailable",
-                                 summary: "The Flow Assistant service is currently unavailable. Your mind map will continue to work normally."
-                             }
-                         ]
-                     },
-                     mapInsights: {
-                         potentialConnections: [],
-                         underdevelopedAreas: [],
-                         structuralSuggestion: {
-                             type: "general_tip",
-                             description: "Consider organizing related concepts closer together in your mind map for better visual flow."
-                         }
-                     }
-                 };
-             }
-         }
+                }
+                return null;
+            } catch (error) {
+                loadingIndicator.style.display = 'none';
+                console.error('Flow Assistant API error:', error);
+                
+                // Return a helpful error structure for display
+                return {
+                    error: true,
+                    message: "Flow Assistant is temporarily unavailable. Please check your connection and try again.",
+                    analysis: {
+                        definitions: [],
+                        keywordSuggestion: null,
+                        probingQuestion: "What aspects of this topic would you like to explore further?"
+                    },
+                    overviews: {
+                        searchQueryUsed: contextData.currentNodeText,
+                        results: [
+                            {
+                                title: "Service Unavailable",
+                                summary: "The Flow Assistant service is currently unavailable. Your mind map will continue to work normally."
+                            }
+                        ]
+                    },
+                    mapInsights: {
+                        potentialConnections: [],
+                        underdevelopedAreas: [],
+                        structuralSuggestion: {
+                            type: "general_tip",
+                            description: "Consider organizing related concepts closer together in your mind map for better visual flow."
+                        }
+                    }
+                };
+            }
+        }
 
         // Build context data for Flow Assistant
         function buildFlowAssistantContext(selectedNode) {
@@ -889,7 +912,7 @@ Your entire output must be a single, valid JSON object following this structure:
                 <div id="assistant-welcome" class="assistant-message">
                     <div class="assistant-content">
                         <div class="assistant-name">🌊 Flow Assistant</div>
-                        <div class="assistant-text">Keeping you in the flow of ideas. I'll provide contextual insights and Google overview results to help expand your thinking without interruption.</div>
+                        <div class="assistant-text">Powered by DeepSeek AI. Keeping you in the flow of ideas with contextual insights and intelligent analysis to help expand your thinking without interruption.</div>
                     </div>
                 </div>
             `;
@@ -947,7 +970,7 @@ Format as JSON array: [{"title": "...", "content": "..."}]
 Focus on background information, context, examples, or interesting facts that would enrich understanding.`;
 
             try {
-                const response = await callGeminiAPI(prompt, 700);
+                const response = await callDeepSeekAPI(prompt, 700);
                 if (response) {
                     const jsonMatch = response.match(/\[[\s\S]*\]/);
                     if (jsonMatch) {
@@ -1511,7 +1534,7 @@ Focus on background information, context, examples, or interesting facts that wo
 Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             
             // Run async without blocking
-            callGeminiAPI(prompt, 200).then(response => {
+            callDeepSeekAPI(prompt, 200).then(response => {
                 if (response) {
                     try {
                         const suggestions = JSON.parse(response);
@@ -1630,7 +1653,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
 
             const prompt = `Suggest 4 child nodes for "${node.name}" (2-3 words max). Return JSON array only.`;
 
-            const response = await callGeminiAPIWithRateLimit(prompt, 100, 'low'); // Shorter limit for JSON array
+            const response = await callDeepSeekAPIWithRateLimit(prompt, 100, 'low'); // Shorter limit for JSON array
             if (response) {
                 try {
                     const suggestions = JSON.parse(response);
@@ -2437,7 +2460,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                                     } else if (action === 'Solutions') {
                                         prompt = `Suggest practical solutions or approaches for "${d.name}".`;
                                     }
-                                    const aiResponse = await callGeminiAPIWithRateLimit(prompt, 260, 'high');
+                                    const aiResponse = await callDeepSeekAPIWithRateLimit(prompt, 260, 'high');
                                     if (aiResponse) {
                                         const currentNotes = d.notes || '';
                                         const newContent = aiResponse;
@@ -3897,7 +3920,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             const context = buildMindMapContext();
             const prompt = `Summarize this mind map: ${context}`;
             
-            callGeminiAPIWithRateLimit(prompt, 260, 'high').then(response => {
+            callDeepSeekAPIWithRateLimit(prompt, 260, 'high').then(response => {
                 if (response) {
                     addAssistantMessage("Summary:", []);
                     addAssistantMessage(response, []);
@@ -3910,14 +3933,14 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             
             const prompt = `Elaborate on "${selectedNode.name}" with key insights.`;
             
-            callGeminiAPIWithRateLimit(prompt, 260, 'high').then(response => {
+            callDeepSeekAPIWithRateLimit(prompt, 260, 'high').then(response => {
                 if (response) {
                     addAssistantMessage(`About "${selectedNode.name}":`, []);
                     addAssistantMessage(response, []);
                     
                     // Also generate some suggested child nodes
                     const suggestionPrompt = `Suggest 3-4 child nodes for "${selectedNode.name}" (2-3 words each) as JSON array.`;
-                    callGeminiAPIWithRateLimit(suggestionPrompt, 150, 'medium').then(suggestions => {
+                    callDeepSeekAPIWithRateLimit(suggestionPrompt, 150, 'medium').then(suggestions => {
                         if (suggestions) {
                             try {
                                 const parsed = JSON.parse(suggestions);
