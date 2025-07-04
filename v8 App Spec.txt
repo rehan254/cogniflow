@@ -133,4 +133,15 @@ CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless
 
 ---
 
-**Status:** Production Ready - CogniFlow v8 represents a fully-featured, AI-powered mind mapping application with professional-grade functionality, comprehensive user experience, and advanced AI integration capabilities. 
+**Status:** Production Ready - CogniFlow v8 represents a fully-featured, AI-powered mind mapping application with professional-grade functionality, comprehensive user experience, and advanced AI integration capabilities.
+
+2025 UPDATE SUMMARY
+
+- Node overlap is now fully prevented: expanded, list, and media nodes use bounding box collision, not just circle radius.
+- Link distances are dynamic: large/expanded nodes automatically space out for a balanced, pleasant layout.
+- A post-tick overlap resolver ensures no node overlaps after each simulation tick.
+- Force strengths and decay have been tuned for more even, stable layouts.
+- All node types (standard, expanded, list, media) are visually consistent and their sizes are respected in force calculations.
+- The UI now features a modern, iOS-like top bar with an LLM settings modal for endpoint/model/temperature/rate limit, and persistent settings.
+- LLM settings can be changed live from the UI and are saved to localStorage.
+- Theming and controls are visually consistent and compact. 

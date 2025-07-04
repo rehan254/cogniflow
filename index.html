@@ -1,17 +1,17 @@
+/* Version: 1751007550 */
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CogniFlow - The LLM-Powered Idea Synthesizer</title>
-    <link rel="icon" href="data:,">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit@0.1.8/source.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
             --ui-bg-dark: #0d0d0d;
@@ -32,7 +32,12 @@
             transition: background-color 1.5s ease-in-out;
         }
 
-        #mindmap-container { flex-grow: 1; position: relative; background: transparent; }
+        #mindmap-container { 
+            flex-grow: 1; 
+            position: relative; 
+            background: transparent; 
+            margin-top: 60px; /* Account for top bar height */
+        }
         svg { display: block; width: 100%; height: 100%; }
         
         .link {
@@ -80,6 +85,19 @@
             flex-direction: column;
             background-color: var(--ui-bg-dark);
             color: var(--ui-text-dark);
+            transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            position: relative;
+            will-change: border-top, box-shadow;
+        }
+
+        #bottom-panel:hover #assistant-messages {
+            max-height: 70vh; /* expanded height */
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        #bottom-panel:hover {
+            border-top: 2px solid rgba(255, 255, 255, 0.1);
         }
 
         #assistant-messages {
@@ -89,8 +107,15 @@
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
-            max-height: 200px;
+            max-height: 48px; /* collapsed height */
+            overflow: hidden;
+            opacity: 0.95;
+            transform: translateY(8px);
+            transition: max-height 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s, transform 0.4s;
+            will-change: max-height, transform, box-shadow, opacity;
         }
+
+        /* #assistant-messages hover behavior is now handled above */
 
         .assistant-message {
             display: flex;
@@ -151,6 +176,62 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        /* Integrated Export Buttons in Flow Assistant Cards */
+        .insight-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 8px;
+        }
+
+        .insight-export-btn {
+            padding: 4px 12px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            color: var(--ui-text-dark);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .insight-export-btn:hover {
+            background-color: var(--ui-focus-dark);
+            border-color: var(--ui-focus-dark);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(229, 141, 71, 0.2);
+        }
+
+        .insight-export-btn.success {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+
+        .insight-export-btn.error {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+        }
+
+        /* Live Suggestions Card Styling */
+        .flow-insight.live-suggestions {
+            background: linear-gradient(135deg, rgba(230, 126, 34, 0.1), rgba(241, 196, 15, 0.1));
+            border-left: 4px solid #f39c12;
+        }
+
+        .flow-insight.live-suggestions:hover {
+            background: linear-gradient(135deg, rgba(230, 126, 34, 0.15), rgba(241, 196, 15, 0.15));
+            transform: translateY(-2px);
+        }
+
         /* Flow Assistant Insights Styling */
         .flow-insights {
             margin-top: 0.75rem;
@@ -160,58 +241,162 @@
         }
 
         .flow-insight {
-            background-color: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
-            padding: 0.6rem;
+            background-color: #2c2c2c;
+            border-radius: 8px;
+            padding: 0.75rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
 
         .flow-insight:hover {
-            background-color: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.15);
+            background-color: #363636;
+            transform: translateY(-1px);
         }
 
         .flow-insight.expanded {
-            background-color: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
+            background-color: #404040;
+        }
+        
+        /* Integrated Suggestion Pills in Cards */
+        .suggestion-pills-container, .area-suggestions {
+            margin: 12px 0 8px 0;
+            padding: 8px 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .suggestion-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        
+        .suggestion-pill {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+        }
+        
+        .suggestion-pill:hover {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .suggestion-pill:active {
+            transform: scale(0.95);
+        }
+        
+        .suggestion-pill.secondary {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        
+        .suggestion-pill.secondary:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+        
+        /* Removed typing overlay styles - Live Suggestions now integrated as Flow Assistant cards */
+        
+        .suggestion-pill.live-suggestion {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        .suggestion-pill.live-suggestion:hover {
+            background: linear-gradient(135deg, #e67e22, #d35400);
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Legacy support for old clickable suggestions */
+        .clickable-suggestion {
+            display: inline-block;
+            background: linear-gradient(135deg, #4a7aa2, #6a9fdf);
+            color: white;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .clickable-suggestion:hover {
+            background: linear-gradient(135deg, #6a9fdf, #8abfff);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(74, 122, 162, 0.3);
+        }
+        
+        .clickable-suggestion:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(74, 122, 162, 0.4);
         }
 
         /* Enhanced styling for different insight types */
         .flow-insight.keyword-suggestion {
-            border-left: 3px solid #e58d47;
-            background-color: rgba(229, 141, 71, 0.05);
+            border-left: 4px solid #e58d47;
         }
 
         .flow-insight.keyword-suggestion:hover {
-            background-color: rgba(229, 141, 71, 0.1);
-            cursor: pointer;
+            border-left-color: #ff9d57;
         }
 
         .flow-insight.probing-question {
-            border-left: 3px solid #6a9fdf;
-            background-color: rgba(106, 159, 223, 0.05);
+            border-left: 4px solid #6a9fdf;
+        }
+
+        .flow-insight.probing-question:hover {
+            border-left-color: #7aafef;
         }
 
         .flow-insight.overview-card {
-            border-left: 3px solid #8abfff;
-            background-color: rgba(138, 191, 255, 0.05);
+            border-left: 4px solid #8abfff;
+        }
+
+        .flow-insight.overview-card:hover {
+            border-left-color: #9acfff;
         }
 
         .flow-insight.connection-insight {
-            border-left: 3px solid #7aa36a;
-            background-color: rgba(122, 163, 106, 0.05);
+            border-left: 4px solid #7aa36a;
+        }
+
+        .flow-insight.connection-insight:hover {
+            border-left-color: #8ab37a;
         }
 
         .flow-insight.gap-insight {
-            border-left: 3px solid #ffaf7a;
-            background-color: rgba(255, 175, 122, 0.05);
+            border-left: 4px solid #ffaf7a;
+        }
+
+        .flow-insight.gap-insight:hover {
+            border-left-color: #ffbf8a;
         }
 
         .flow-insight.structural-suggestion {
-            border-left: 3px solid #aa9acd;
-            background-color: rgba(170, 154, 205, 0.05);
+            border-left: 4px solid #aa9acd;
+        }
+
+        .flow-insight.structural-suggestion:hover {
+            border-left-color: #baaadd;
         }
 
         .insight-title {
@@ -233,6 +418,20 @@
             color: rgba(255, 255, 255, 0.8);
             font-size: 0.75rem;
             line-height: 1.4;
+        }
+
+        .insight-full ul {
+            margin: 0.5rem 0;
+            padding-left: 1.2rem;
+        }
+
+        .insight-full li {
+            margin: 0.3rem 0;
+            line-height: 1.3;
+        }
+
+        .insight-full strong {
+            color: rgba(255, 255, 255, 0.9);
         }
 
         #user-instructions {
@@ -332,35 +531,298 @@
             z-index: 1000;
         }
 
-        .theme-selector {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
+        /* Modern iOS-like Top Bar */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--ui-bg-dark);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1rem;
             z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
         }
 
-        #theme-dropdown {
-            background-color: var(--ui-input-bg-dark);
-            color: var(--ui-text-dark);
-            border: none;
-            border-radius: 8px;
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .top-bar-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--ui-text-dark);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .top-bar-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .top-bar-item.active {
+            background: var(--ui-focus-dark);
+            border-color: var(--ui-focus-dark);
+            color: white;
+        }
+
+        .top-bar-select {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: inherit;
+            font-weight: inherit;
             cursor: pointer;
             outline: none;
-            transition: background-color 0.2s;
-            backdrop-filter: blur(10px);
-            background: rgba(44, 44, 44, 0.85);
+            padding: 0;
+            min-width: 120px;
         }
 
-        #theme-dropdown:hover {
-            background-color: var(--ui-focus-dark);
-        }
-
-        #theme-dropdown option {
-            background-color: var(--ui-input-bg-dark);
+        .top-bar-select option {
+            background: var(--ui-input-bg-dark);
             color: var(--ui-text-dark);
+        }
+
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .model-badge {
+            background: var(--ui-focus-dark);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .usage-bar {
+            width: 60px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .usage-bar::after {
+            content: '';
+            display: block;
+            height: 100%;
+            background: var(--ui-focus-dark);
+            width: var(--usage-percent, 0%);
+            transition: width 0.3s ease;
+        }
+
+        .control-btn {
+            background: transparent;
+            border: none;
+            color: var(--ui-text-dark);
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 32px;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+
+        .control-btn.active {
+            background: var(--ui-focus-dark);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        /* LLM Settings Modal */
+        .llm-settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .llm-settings-content {
+            background: var(--ui-input-bg-dark);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .llm-settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .llm-settings-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--ui-text-dark);
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--ui-text-dark);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .setting-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--ui-text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--ui-text-dark);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: var(--ui-focus-dark);
+            box-shadow: 0 0 0 2px rgba(229, 141, 71, 0.3);
+        }
+
+        .setting-row {
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .setting-row .setting-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .save-btn {
+            background: var(--ui-focus-dark);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .save-btn:hover {
+            background: #d17a3a;
+            transform: translateY(-1px);
+        }
+
+        .test-connection-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--ui-text-dark);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .test-connection-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+        }
+
+        .status-indicator.error {
+            background: #f44336;
+        }
+
+        .status-indicator.loading {
+            background: #ff9800;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
 
         .expanded-node-container {
@@ -467,18 +929,87 @@
         <svg id="mindmap-svg"></svg>
         <div id="loading-indicator" class="loading-indicator">CogniFlow is thinking...</div>
         
-        <!-- Theme Selector -->
-        <div id="theme-selector" class="theme-selector">
-            <select id="theme-dropdown">
-                <option value="Crimson Dusk">Crimson Dusk</option>
-                <option value="Midnight Scholar">Midnight Scholar</option>
-                <option value="Autumn Whisper">Autumn Whisper</option>
-                <option value="Ocean Depths">Ocean Depths</option>
-                <option value="Forest Sage">Forest Sage</option>
-                <option value="Arctic Twilight">Arctic Twilight</option>
-                <option value="Neon Pulse">Neon Pulse</option>
-                <option value="Electric Storm">Electric Storm</option>
-            </select>
+        <!-- Modern iOS-like Top Bar -->
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <div class="top-bar-item" id="model-status">
+                    <span class="model-badge" id="current-model">LLAMA</span>
+                    <div class="usage-bar" id="usage-indicator"></div>
+                </div>
+                <button class="control-btn" id="toggle-background" title="Toggle background AI updates">
+                    🔄
+                </button>
+            </div>
+            
+            <div class="top-bar-right">
+                <button class="top-bar-item" id="llm-settings-trigger" title="LLM Settings">
+                    <span style="font-size:1.2em;">🤖</span> LLM Settings
+                </button>
+                <button class="top-bar-item" id="export-json" title="Export JSON">
+                    <span style="font-size:1.2em;">⬇️</span> Export JSON
+                </button>
+                <button class="top-bar-item" id="import-json" title="Import JSON">
+                    <span style="font-size:1.2em;">⬆️</span> Import JSON
+                </button>
+                <div class="top-bar-item">
+                    <span style="font-size:1.2em;">🎨</span>
+                    <select class="top-bar-select" id="theme-dropdown">
+                        <option value="Crimson Dusk">Crimson Dusk</option>
+                        <option value="Midnight Scholar">Midnight Scholar</option>
+                        <option value="Autumn Whisper">Autumn Whisper</option>
+                        <option value="Ocean Depths">Ocean Depths</option>
+                        <option value="Forest Sage">Forest Sage</option>
+                        <option value="Arctic Twilight">Arctic Twilight</option>
+                        <option value="Neon Pulse">Neon Pulse</option>
+                        <option value="Electric Storm">Electric Storm</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLM Settings Modal -->
+        <div class="llm-settings-modal" id="llm-settings-modal">
+            <div class="llm-settings-content">
+                <div class="llm-settings-header">
+                    <h3 class="llm-settings-title">🤖 LLM Configuration</h3>
+                    <button class="close-btn" id="close-llm-settings">×</button>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">API Endpoint</label>
+                    <input type="text" class="setting-input" id="llm-endpoint" placeholder="http://localhost:1234/v1">
+                </div>
+                
+                <div class="setting-row">
+                    <div class="setting-group">
+                        <label class="setting-label">Model Name</label>
+                        <input type="text" class="setting-input" id="llm-model" placeholder="llama-3.2-3b-instruct:2">
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">Max Tokens</label>
+                        <input type="number" class="setting-input" id="llm-max-tokens" placeholder="2048" min="100" max="8000">
+                    </div>
+                </div>
+                
+                <div class="setting-row">
+                    <div class="setting-group">
+                        <label class="setting-label">Temperature</label>
+                        <input type="number" class="setting-input" id="llm-temperature" placeholder="0.7" min="0" max="2" step="0.1">
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">Rate Limit (ms)</label>
+                        <input type="number" class="setting-input" id="llm-rate-limit" placeholder="10" min="0" max="5000">
+                    </div>
+                </div>
+                
+                <button class="test-connection-btn" id="test-connection">Test Connection</button>
+                <div class="connection-status" id="connection-status" style="display: none;">
+                    <div class="status-indicator" id="status-indicator"></div>
+                    <span id="status-text">Testing connection...</span>
+                </div>
+                
+                <button class="save-btn" id="save-llm-settings">Save Settings</button>
+            </div>
         </div>
     </div>
     
@@ -529,23 +1060,57 @@
         let activeListNode = null;
         let dropTargetNode = null;
 
-        // --- API Configuration ---
-        const DEEPSEEK_API_KEY = 'sk-351b31abac2b48a7a18a087991970a81';
-        const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+        // --- LM Studio Local API Configuration ---
+        // Using Llama 3.2 3B Instruct model via LM Studio
+        const LM_STUDIO_BASE_URL = 'http://localhost:1234/v1';
+        const LOCAL_MODEL_NAME = 'llama-3.2-3b-instruct';
         
-        // Rate limiting configuration
-        let lastApiCall = 0;
-        const MIN_API_INTERVAL = 2000; // Minimum 2 seconds between API calls
+        // Google Search functionality removed - Flow Assistant now uses only local LLM knowledge
+        
+        // LM Studio model configuration (local, no rate limits needed)
+        const LM_STUDIO_MODELS = {
+            'llama': {
+                url: `${LM_STUDIO_BASE_URL}/chat/completions`,
+                model: LOCAL_MODEL_NAME,
+                maxTokens: 2048,
+                rateLimitDelay: 10, // Minimal delay for local model (10x faster)
+                dailyLimit: 999999, // No limits for local model
+                priority: 1
+            }
+        };
+        
+        // Track usage per model (local model has no limits)
+        let modelUsage = {
+            'llama': { today: 0, lastReset: new Date().toDateString() }
+        };
+        
+        // Get the best available model (always returns local Llama model)
+        function getBestAvailableModel(requestType = 'standard') {
+            const today = new Date().toDateString();
+            
+            // Reset daily counters if new day (not really needed for local model)
+            if (modelUsage.llama.lastReset !== today) {
+                modelUsage.llama.today = 0;
+                modelUsage.llama.lastReset = today;
+            }
+            
+            // Always return the local Llama model
+            return { name: 'llama', config: LM_STUDIO_MODELS['llama'] };
+        }
+        
+        // Enhanced rate limiting configuration
+        let lastApiCall = {};  // Track per model
         let apiCallQueue = [];
         let isProcessingQueue = false;
 
-        // Rate-limited API call with queue system
-        async function callDeepSeekAPIWithRateLimit(prompt, maxChars = 260, priority = 'low') {
+        // Enhanced rate-limited API call with queue system for LM Studio
+        async function callLocalAPIWithRateLimit(prompt, maxChars = 260, priority = 'low', requestType = 'standard') {
             return new Promise((resolve, reject) => {
                 apiCallQueue.push({
                     prompt,
                     maxChars,
                     priority,
+                    requestType,
                     resolve,
                     reject,
                     timestamp: Date.now()
@@ -562,7 +1127,7 @@
             });
         }
 
-        // Process the API call queue with rate limiting
+        // Enhanced API queue processing with multi-model support
         async function processApiQueue() {
             if (isProcessingQueue || apiCallQueue.length === 0) return;
             
@@ -570,35 +1135,27 @@
             updateQueueStatus();
             
             while (apiCallQueue.length > 0) {
-                const now = Date.now();
-                const timeSinceLastCall = now - lastApiCall;
-                
-                // Wait if we need to respect rate limit
-                if (timeSinceLastCall < MIN_API_INTERVAL) {
-                    await new Promise(resolve => setTimeout(resolve, MIN_API_INTERVAL - timeSinceLastCall));
-                }
-                
                 const request = apiCallQueue.shift();
-                lastApiCall = Date.now();
                 
                 try {
-                    const result = await makeActualAPICall(request.prompt, request.maxChars);
+                    const result = await makeActualAPICall(request.prompt, request.maxChars, request.requestType || 'standard');
                     request.resolve(result);
                 } catch (error) {
-                    // For 429 errors, put the request back in queue with exponential backoff
-                    if (error.message.includes('429')) {
-                        console.log('Rate limit hit, retrying after delay...');
+                    // For 429 or model unavailable errors, put the request back in queue with delay
+                    if (error.message.includes('429') || error.message.includes('unavailable')) {
+                        console.log('All models temporarily unavailable, retrying after delay...');
                         setTimeout(() => {
                             apiCallQueue.unshift(request); // Put back at front of queue
                             processApiQueue();
-                        }, 5000); // Wait 5 seconds before retry
+                        }, 10000); // Wait 10 seconds before retry
                         continue;
                     }
                     request.reject(error);
                 }
                 
-                // Small delay between requests
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Dynamic delay based on queue length (10x faster)
+                const delay = apiCallQueue.length > 5 ? 20 : 50;
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
             
             isProcessingQueue = false;
@@ -626,76 +1183,650 @@
             }
         }
 
-        // Helper function for DeepSeek API calls - non-blocking
-        async function callDeepSeekAPI(prompt, maxChars = 260) {
+        // Helper function for Local LM Studio API calls - non-blocking
+        async function callLocalAPI(prompt, maxChars = 260) {
             // Use the rate-limited version for better performance
-            return callDeepSeekAPIWithRateLimit(prompt, maxChars, 'low');
+            return callLocalAPIWithRateLimit(prompt, maxChars, 'low');
         }
 
-        // Actual API call implementation
-        async function makeActualAPICall(prompt, maxChars = 260) {
-            // Add character limit instruction to prompt
-            const limitedPrompt = `${prompt}\n\nIMPORTANT: Keep your response under ${maxChars} characters.`;
+        // --- Enhanced Markdown Export Functionality ---
+        function exportToMarkdown() {
+            if (nodes.length === 0) {
+                alert('No mindmap to export. Create some nodes first!');
+                return '';
+            }
+
+            const rootNode = nodes.find(node => node.depth === 0);
+            if (!rootNode) {
+                alert('No central node found!');
+                return '';
+            }
+
+            let markdown = '';
             
-            try {
-                // Don't block UI - show loading only for explicit user actions
-                const isUserAction = prompt.includes('Summarize') || prompt.includes('Elaborate') || prompt.includes('Define') || prompt.includes('Solutions');
-                if (isUserAction) {
-                    loadingIndicator.style.display = 'block';
+            // Enhanced header with metadata
+            markdown += `# ${rootNode.name}\n\n`;
+            
+            // Add comprehensive metadata
+            const now = new Date();
+            markdown += `## 📋 Mindmap Metadata\n\n`;
+            markdown += `- **Export Date**: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+            markdown += `- **Export Time**: ${now.toLocaleTimeString('en-US', { hour12: false })}\n`;
+            markdown += `- **Total Nodes**: ${nodes.length}\n`;
+            markdown += `- **Total Connections**: ${links.length}\n`;
+            markdown += `- **Max Depth**: ${Math.max(...nodes.map(n => n.depth))}\n`;
+            markdown += `- **Node Types**: ${getNodeTypeSummary()}\n\n`;
+            
+            // Add root node notes if present
+            if (rootNode.notes && rootNode.notes.trim()) {
+                markdown += `## 📝 Central Idea Notes\n\n${rootNode.notes.trim()}\n\n`;
+            }
+            
+            // Add mindmap structure overview
+            markdown += `## 🗺️ Mindmap Structure\n\n`;
+            const structure = generateStructureOverview(rootNode);
+            if (structure) {
+                markdown += structure;
+            } else {
+                markdown += 'This mindmap contains only the central idea.\n\n';
+            }
+            
+            // Add detailed content
+            markdown += `## 📚 Detailed Content\n\n`;
+            markdown += processNodeHierarchy(rootNode, 0);
+            
+            // Add footer with export info
+            markdown += `---\n\n`;
+            markdown += `*Generated by CogniFlow - A professional mind mapping tool optimized for LLM processing*\n`;
+            markdown += `*This markdown is structured for easy parsing by AI models and human readers alike*\n\n`;
+            
+            return markdown;
+        }
+
+        function getNodeTypeSummary() {
+            const typeCounts = {
+                standard: 0,
+                list: 0,
+                media: 0,
+                expanded: 0
+            };
+            
+            nodes.forEach(node => {
+                if (node.isExpanded) typeCounts.expanded++;
+                else if (node.isListNode) typeCounts.list++;
+                else if (node.isMediaNode) typeCounts.media++;
+                else typeCounts.standard++;
+            });
+            
+            const parts = [];
+            if (typeCounts.standard > 0) parts.push(`${typeCounts.standard} standard`);
+            if (typeCounts.list > 0) parts.push(`${typeCounts.list} list`);
+            if (typeCounts.media > 0) parts.push(`${typeCounts.media} media`);
+            if (typeCounts.expanded > 0) parts.push(`${typeCounts.expanded} expanded`);
+            
+            return parts.join(', ');
+        }
+
+        function generateStructureOverview(rootNode) {
+            const children = getChildrenOfNode(rootNode);
+            if (children.length === 0) return null;
+            
+            let overview = '### Main Branches\n\n';
+            
+            children.forEach((child, index) => {
+                const childCount = countDescendants(child);
+                const childTypes = getChildTypeSummary(child);
+                overview += `${index + 1}. **${child.name}**`;
+                if (childCount > 0) {
+                    overview += ` (${childCount} sub-items${childTypes ? `, ${childTypes}` : ''})`;
+                }
+                if (child.notes && child.notes.trim()) {
+                    overview += ` - ${child.notes.trim().substring(0, 100)}${child.notes.length > 100 ? '...' : ''}`;
+                }
+                overview += '\n';
+            });
+            
+            overview += '\n';
+            return overview;
+        }
+
+        function countDescendants(node) {
+            const children = getChildrenOfNode(node);
+            let count = children.length;
+            children.forEach(child => {
+                count += countDescendants(child);
+            });
+            return count;
+        }
+
+        function getChildTypeSummary(node) {
+            const descendants = getAllDescendants(node);
+            const types = [];
+            
+            const hasLists = descendants.some(n => n.isListNode);
+            const hasMedia = descendants.some(n => n.isMediaNode);
+            const hasExpanded = descendants.some(n => n.isExpanded);
+            
+            if (hasLists) types.push('lists');
+            if (hasMedia) types.push('media');
+            if (hasExpanded) types.push('expanded');
+            
+            return types.length > 0 ? types.join(', ') : null;
+        }
+
+        function getAllDescendants(node) {
+            const descendants = [];
+            const children = getChildrenOfNode(node);
+            
+            children.forEach(child => {
+                descendants.push(child);
+                descendants.push(...getAllDescendants(child));
+            });
+            
+            return descendants;
+        }
+
+        function getChildrenOfNode(parentNode) {
+            return links
+                .filter(link => link.source.id === parentNode.id)
+                .map(link => link.target)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        function processNodeHierarchy(node, depth) {
+            let markdown = '';
+            const children = getChildrenOfNode(node);
+            
+            for (const child of children) {
+                markdown += generateNodeMarkdown(child, depth + 1);
+                // Recursively process children
+                markdown += processNodeHierarchy(child, depth + 1);
+            }
+            
+            return markdown;
+        }
+
+        function generateNodeMarkdown(node, depth) {
+            let markdown = '';
+            const indent = '  '.repeat(Math.max(0, depth - 1)); // Indent for hierarchy
+            const prefix = depth === 1 ? '## ' : `${'#'.repeat(Math.min(depth + 1, 6))} `;
+            
+            // Add node type indicator and enhanced formatting
+            const nodeType = getNodeTypeLabel(node);
+            const typeIndicator = nodeType ? ` <small>(${nodeType})</small>` : '';
+            
+            if (node.isListNode && node.listItems && node.listItems.length > 0) {
+                // Handle list nodes with enhanced formatting
+                markdown += `${prefix}${node.name}${typeIndicator}\n\n`;
+                
+                // Add list metadata
+                markdown += `${indent}**List Type**: ${getListTypeLabel(node.listType)}\n`;
+                markdown += `${indent}**Items**: ${node.listItems.length}\n\n`;
+                
+                // Add list items with enhanced formatting
+                for (const item of node.listItems) {
+                    if (node.listType === 'bullet') {
+                        markdown += `${indent}- ${item.text}\n`;
+                    } else if (node.listType === 'numbered') {
+                        const index = node.listItems.indexOf(item) + 1;
+                        markdown += `${indent}${index}. ${item.text}\n`;
+                    } else if (node.listType === 'task') {
+                        const checkbox = item.checked ? '[x]' : '[ ]';
+                        const status = item.checked ? ' ~~' : '';
+                        const endStatus = item.checked ? '~~' : '';
+                        markdown += `${indent}- ${checkbox} ${status}${item.text}${endStatus}\n`;
+                    }
+                }
+                markdown += '\n';
+                
+            } else if (node.isListNode) {
+                // Handle list nodes that might not have items yet
+                markdown += `${prefix}${node.name}${typeIndicator}\n\n`;
+                markdown += `${indent}**List Type**: ${getListTypeLabel(node.listType)}\n`;
+                markdown += `${indent}**Items**: 0 (empty list)\n\n`;
+                
+            } else if (node.isMediaNode) {
+                // Handle media nodes with enhanced formatting
+                markdown += `${prefix}${node.name}${typeIndicator}\n\n`;
+                
+                // Add media metadata
+                markdown += `${indent}**Media Type**: ${getMediaTypeLabel(node.mediaType)}\n`;
+                if (node.mediaMetadata?.source) {
+                    markdown += `${indent}**Source**: ${node.mediaMetadata.source}\n`;
+                }
+                markdown += '\n';
+                
+                // Enhanced media content
+                if (node.mediaType === 'youtube') {
+                    markdown += `${indent}🎥 **YouTube Video**: [${node.name}](${node.mediaSrc})\n`;
+                    if (node.mediaMetadata?.videoId) {
+                        markdown += `${indent}**Video ID**: \`${node.mediaMetadata.videoId}\`\n`;
+                    }
+                    if (node.mediaMetadata?.duration) {
+                        markdown += `${indent}**Duration**: ${node.mediaMetadata.duration}\n`;
+                    }
+                } else if (node.mediaType === 'image') {
+                    markdown += `${indent}![${node.name}](${node.mediaSrc})\n`;
+                    if (node.mediaMetadata?.dimensions) {
+                        markdown += `${indent}**Dimensions**: ${node.mediaMetadata.dimensions}\n`;
+                    }
+                } else if (node.mediaType === 'pdf') {
+                    markdown += `${indent}📄 **PDF Document**: [${node.name}](${node.mediaSrc})\n`;
+                    if (node.mediaMetadata?.pages) {
+                        markdown += `${indent}**Pages**: ${node.mediaMetadata.pages}\n`;
+                    }
+                } else if (node.mediaType === 'github') {
+                    markdown += `${indent}🗂️ **GitHub Repository**: [${node.name}](${node.mediaSrc})\n`;
+                    if (node.mediaMetadata?.owner && node.mediaMetadata?.repo) {
+                        markdown += `${indent}**Repository**: \`${node.mediaMetadata.owner}/${node.mediaMetadata.repo}\`\n`;
+                    }
+                    if (node.mediaMetadata?.stars) {
+                        markdown += `${indent}**Stars**: ⭐ ${node.mediaMetadata.stars}\n`;
+                    }
+                } else if (node.mediaType === 'link') {
+                    markdown += `${indent}🔗 **Link**: [${node.name}](${node.mediaSrc})\n`;
+                    if (node.mediaMetadata?.domain) {
+                        markdown += `${indent}**Domain**: ${node.mediaMetadata.domain}\n`;
+                    }
+                } else {
+                    markdown += `${indent}📎 **Media**: [${node.name}](${node.mediaSrc})\n`;
+                }
+                markdown += '\n';
+                
+            } else if (node.isExpanded) {
+                // Handle expanded nodes with enhanced formatting
+                markdown += `${prefix}${node.name}${typeIndicator}\n\n`;
+                
+                // Add expanded node content
+                if (node.notes && node.notes.trim()) {
+                    markdown += `${indent}**Notes**:\n\n${indent}${node.notes.trim()}\n\n`;
                 }
                 
-                const response = await fetch(DEEPSEEK_API_URL, {
+            } else {
+                // Handle standard nodes with enhanced formatting
+                markdown += `${prefix}${node.name}${typeIndicator}\n\n`;
+                
+                // Add notes if present
+                if (node.notes && node.notes.trim()) {
+                    markdown += `${indent}**Notes**: ${node.notes.trim()}\n\n`;
+                }
+            }
+            
+            // Add connection information
+            const children = getChildrenOfNode(node);
+            if (children.length > 0) {
+                markdown += `${indent}**Connected to**: ${children.length} child node${children.length !== 1 ? 's' : ''}\n\n`;
+            }
+            
+            return markdown;
+        }
+
+        function getNodeTypeLabel(node) {
+            if (node.isExpanded) return 'Expanded Node';
+            if (node.isListNode) return 'List Node';
+            if (node.isMediaNode) return 'Media Node';
+            return 'Standard Node';
+        }
+
+        function getListTypeLabel(listType) {
+            switch (listType) {
+                case 'bullet': return 'Bullet List';
+                case 'numbered': return 'Numbered List';
+                case 'task': return 'Task List';
+                default: return 'Unknown';
+            }
+        }
+
+        function getMediaTypeLabel(mediaType) {
+            switch (mediaType) {
+                case 'youtube': return 'YouTube Video';
+                case 'image': return 'Image';
+                case 'pdf': return 'PDF Document';
+                case 'github': return 'GitHub Repository';
+                case 'link': return 'Web Link';
+                default: return 'Unknown Media';
+            }
+        }
+
+        function downloadMarkdown(content, filename = 'cogniflow-mindmap.md') {
+            const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (err) {
+                console.error('Failed to copy to clipboard:', err);
+                // Fallback method
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    return true;
+                } catch (err) {
+                    document.body.removeChild(textArea);
+                    return false;
+                }
+            }
+        }
+
+        // Helper function to generate export actions for Flow Assistant cards
+        function generateInsightActions(cardType = 'full') {
+            return `
+                <div class="insight-actions">
+                    <button class="insight-export-btn export-full-map" onclick="exportFullMap(this, event)">
+                        📄 Export Full Map
+                    </button>
+                    <button class="insight-export-btn copy-full-map" onclick="copyFullMap(this, event)">
+                        📋 Copy Full Map
+                    </button>
+                </div>
+            `;
+        }
+
+        // Export button handlers for Flow Assistant cards
+        function exportFullMap(button, event) {
+            event.stopPropagation();
+            const markdown = exportToMarkdown();
+            if (markdown) {
+                const timestamp = new Date().toISOString().slice(0, 10);
+                const filename = `cogniflow-mindmap-${timestamp}.md`;
+                downloadMarkdown(markdown, filename);
+                
+                // Provide visual feedback
+                const originalText = button.textContent;
+                button.textContent = '✅ Downloaded!';
+                button.classList.add('success');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('success');
+                }, 2000);
+            }
+        }
+
+        async function copyFullMap(button, event) {
+            event.stopPropagation();
+            const markdown = exportToMarkdown();
+            if (markdown) {
+                const success = await copyToClipboard(markdown);
+                
+                // Provide visual feedback
+                const originalText = button.textContent;
+                if (success) {
+                    button.textContent = '✅ Copied!';
+                    button.classList.add('success');
+                } else {
+                    button.textContent = '❌ Failed';
+                    button.classList.add('error');
+                }
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('success', 'error');
+                }, 2000);
+            }
+        }
+
+        // Create Live Suggestions card for Flow Assistant
+        function createLiveSuggestionsCard(inputText, suggestions) {
+            const suggestionPills = suggestions.map(suggestion => 
+                `<button class="suggestion-pill live-suggestion" data-suggestion="${suggestion.replace(/"/g, '&quot;')}">${suggestion}</button>`
+            ).join('');
+            
+            const fullContent = `
+                <strong>Ideas based on your typing:</strong> "${inputText}"<br/><br/>
+                <div class="suggestion-pills-container">
+                    <div class="suggestion-pills">
+                        ${suggestionPills}
+                    </div>
+                </div>
+                <br/><em>Click any suggestion to use it in your input field</em>
+                ${generateInsightActions()}
+            `;
+            
+            return `
+                <div class="flow-insight live-suggestions" onclick="expandInsight(this)">
+                    <div class="insight-title">🤖 Live Suggestions</div>
+                    <div class="insight-preview">Ideas based on "${inputText}" (${suggestions.length} suggestions)</div>
+                    <div class="insight-full" style="display: none;">
+                        ${fullContent}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Real Google Search Integration (Separate from AI) ---
+        // Google Search functionality removed - Flow Assistant uses only local LLM knowledge
+
+        // --- Event-Driven Flow Assistant System ---
+        let flowAssistantEnabled = true;
+        let lastFlowUpdate = 0;
+        let pendingFlowUpdates = new Map();
+        const FLOW_UPDATE_DELAY = 200; // 200ms after user stops interacting (10x faster)
+        const MIN_FLOW_INTERVAL = 1000; // Minimum 1 second between updates for same node (10x faster)
+
+        // Enhanced event-driven Flow Assistant updates with deduplication
+        function queueFlowAssistantUpdate(nodeId, changeType = 'change', priority = 'medium') {
+            if (!flowAssistantEnabled || !selectedNode) return;
+            
+            const now = Date.now();
+            const lastUpdate = lastFlowUpdate;
+            
+            // Skip if too recent for same node (prevent spam) - much more aggressive deduplication
+            if (now - lastUpdate < MIN_FLOW_INTERVAL && pendingFlowUpdates.has(nodeId)) {
+                console.log(`🚫 Skipping duplicate Flow Assistant request for ${changeType}`);
+                return;
+            }
+            
+            // Skip if same request type is already pending
+            const pendingKey = `${nodeId}-${changeType}`;
+            if (pendingFlowUpdates.has(pendingKey)) {
+                console.log(`🚫 Skipping duplicate ${changeType} request already in queue`);
+                return;
+            }
+            
+            // Clear existing timeout for this node
+            if (pendingFlowUpdates.has(nodeId)) {
+                clearTimeout(pendingFlowUpdates.get(nodeId));
+            }
+            if (pendingFlowUpdates.has(pendingKey)) {
+                clearTimeout(pendingFlowUpdates.get(pendingKey));
+            }
+            
+            // Set new timeout with priority-based delay (10x faster)
+            const delay = priority === 'high' ? 100 : FLOW_UPDATE_DELAY;
+            
+            const timeoutId = setTimeout(async () => {
+                const node = nodes.find(n => n.id === nodeId);
+                if (node && selectedNode && selectedNode.id === nodeId) {
+                    console.log(`🌊 Flow Assistant triggered: ${changeType} on "${node.name}"`);
+                    try {
+                        await activateFlowAssistant(node);
+                        lastFlowUpdate = Date.now();
+                    } catch (error) {
+                        console.error('Flow Assistant update failed:', error);
+                    }
+                }
+                pendingFlowUpdates.delete(nodeId);
+                pendingFlowUpdates.delete(pendingKey);
+            }, delay);
+            
+            pendingFlowUpdates.set(nodeId, timeoutId);
+            pendingFlowUpdates.set(pendingKey, timeoutId);
+        }
+
+        // Intelligent change detection for Flow Assistant triggers
+        function detectSignificantMapChange(changeType, nodeData) {
+            if (!flowAssistantEnabled) return;
+            
+            switch (changeType) {
+                case 'node_added':
+                    // New node added - analyze its parent with high priority
+                    if (nodeData.parent && selectedNode && selectedNode.id === nodeData.parent.id) {
+                        queueFlowAssistantUpdate(nodeData.parent.id, 'child node added', 'high');
+                    }
+                    // Also analyze the new node itself if it gets selected
+                    if (selectedNode && selectedNode.id === nodeData.id) {
+                        queueFlowAssistantUpdate(nodeData.id, 'new node analyzed', 'medium');
+                    }
+                    break;
+                    
+                case 'node_renamed':
+                    // Node text changed - immediate reanalysis
+                    if (selectedNode && selectedNode.id === nodeData.id) {
+                        queueFlowAssistantUpdate(nodeData.id, 'node content changed', 'high');
+                    }
+                    break;
+                    
+                case 'node_selected':
+                    // Different node selected - contextual analysis
+                    queueFlowAssistantUpdate(nodeData.id, 'node selected', 'medium');
+                    break;
+                    
+                case 'structure_changed':
+                    // Map structure modified - reanalyze current selection
+                    if (selectedNode) {
+                        queueFlowAssistantUpdate(selectedNode.id, 'structure modified', 'medium');
+                    }
+                    break;
+                    
+                case 'structure_changed':
+                    // Map structure changed - update current node
+                    if (selectedNode) {
+                        queueBackgroundFlowUpdate(selectedNode.id, 'structure changed');
+                    }
+                    break;
+            }
+        }
+
+        // Toggle background processing
+        function toggleBackgroundProcessing() {
+            backgroundProcessingEnabled = !backgroundProcessingEnabled;
+            console.log(`🔄 Background processing ${backgroundProcessingEnabled ? 'enabled' : 'disabled'}`);
+            
+            if (!backgroundProcessingEnabled) {
+                // Clear all pending updates
+                Object.values(pendingBackgroundUpdates).forEach(timeout => clearTimeout(timeout));
+                pendingBackgroundUpdates = {};
+            }
+            
+            return backgroundProcessingEnabled;
+        }
+
+        // LM Studio API call implementation (OpenAI-compatible format)
+        async function makeActualAPICall(prompt, maxChars = 260, requestType = 'standard') {
+            const limitedPrompt = `${prompt}\n\nIMPORTANT: Keep your response under ${maxChars} characters.`;
+            
+            // Don't block UI - show loading only for explicit user actions
+            const isUserAction = prompt.includes('Summarize') || prompt.includes('Elaborate') || prompt.includes('Define') || prompt.includes('Solutions');
+            
+            try {
+                const { name: modelName, config: modelConfig } = getBestAvailableModel(requestType);
+                
+                // Minimal rate limiting for local model
+                const now = Date.now();
+                const lastCall = lastApiCall[modelName] || 0;
+                const timeSinceLastCall = now - lastCall;
+                
+                if (timeSinceLastCall < modelConfig.rateLimitDelay) {
+                    await new Promise(resolve => setTimeout(resolve, modelConfig.rateLimitDelay - timeSinceLastCall));
+                }
+                
+                if (isUserAction) {
+                    loadingIndicator.style.display = 'block';
+                    loadingIndicator.textContent = `Processing with ${modelName.toUpperCase()} (Local)...`;
+                }
+                
+                // OpenAI-compatible API call to LM Studio
+                const response = await fetch(modelConfig.url, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: 'deepseek-chat',
+                        model: modelConfig.model,
                         messages: [
                             {
-                                role: 'user',
+                                role: "user",
                                 content: limitedPrompt
                             }
                         ],
-                        temperature: 0.7,
-                        max_tokens: maxChars > 500 ? 800 : 200,
-                        top_p: 0.95
+                        temperature: llmSettings.temperature,
+                        max_tokens: maxChars > 1500 ? 3000 : (maxChars > 500 ? 1500 : 500),
+                        stream: false
                     })
                 });
+                
+                lastApiCall[modelName] = Date.now();
                 
                 if (isUserAction) {
                     loadingIndicator.style.display = 'none';
                 }
                 
-                if (!response.ok) {
-                    throw new Error(`API request failed: ${response.status}`);
+                if (response.ok) {
+                    // Successful response - increment usage counter
+                    modelUsage[modelName].today++;
+                    
+                    const data = await response.json();
+                    if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+                        let text = data.choices[0].message.content.trim();
+                        // Enforce character limit
+                        if (text.length > maxChars) {
+                            text = text.substring(0, maxChars - 3) + '...';
+                        }
+                        
+                        console.log(`✅ Success with ${modelName} (Local Llama) - Response: ${text.length} chars`);
+                        
+                        // Update AI status in real-time
+                        if (typeof updateAIStatus === 'function') {
+                            updateAIStatus();
+                        }
+                        
+                        return text;
+                    }
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`LM Studio API request failed: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                console.error(`❌ LM Studio API error:`, error);
+                
+                if (isUserAction) {
+                    loadingIndicator.style.display = 'none';
                 }
                 
-                const data = await response.json();
-                if (data.choices && data.choices[0] && data.choices[0].message) {
-                    let text = data.choices[0].message.content;
-                    // Enforce character limit
-                    if (text.length > maxChars) {
-                        text = text.substring(0, maxChars - 3) + '...';
-                    }
-                    return text;
+                // Check if LM Studio is running
+                if (error.message.includes('Failed to fetch') || error.message.includes('ECONNREFUSED')) {
+                    throw new Error('LM Studio server not running. Please start LM Studio and load the Llama model.');
                 }
-                return null;
-            } catch (error) {
-                loadingIndicator.style.display = 'none';
-                console.error('DeepSeek API error:', error);
-                throw error; // Re-throw to be handled by queue processor
+                
+                throw error;
             }
         }
 
-        // Advanced Flow Assistant API call with structured JSON response
+        // Advanced Flow Assistant API call - Event-Driven AI Analysis System
         async function callFlowAssistantAPI(contextData, priority = 'medium') {
             const systemPrompt = `You are "Flow Assistant," an expert thinking partner integrated within a mind-mapping application called CogniFlow. You are designed to operate as a dynamic, always-on resource, continually processing and updating insights relevant to the user's evolving mind map.
 
-Your primary goal is to deepen the user's understanding of their own ideas, provoke new lines of inquiry with insightful questions, clarify ambiguities, and provide relevant, well-curated external context. Crucially, you aim to help the user build clear, well-structured, and insightful mind maps that reflect their thinking process, adapting your insights as their map evolves.
+Your primary goal is to deepen the user's understanding of their own ideas, provoke new lines of inquiry with insightful questions, clarify ambiguities, and provide relevant, well-curated context from your knowledge base. You aim to help users build clear, well-structured, and insightful mind maps that reflect their thinking process, adapting your insights as their map evolves.
 
-You are NOT a content generator who suggests new nodes out of the blue. You are a catalyst for the user's own thinking, encouraging structural improvement, deeper connections, and conceptual refinement. Your tone is insightful, concise, and helpful, like a brilliant research assistant. Your responses should be fresh, reflecting the latest available information and the current state of the mind map.`;
+You are NOT a content generator who suggests new nodes randomly. You are a catalyst for the user's own thinking, encouraging structural improvement, deeper connections, and conceptual refinement. Your tone is insightful, concise, and helpful, like a brilliant research assistant. Your responses should be fresh, reflecting the current state of the mind map and providing actionable insights.`;
 
             const userPrompt = `You will receive a JSON object containing the current context of the user's mind map. This represents the latest state of the map, and your response should reflect updated information and insights.
 
@@ -710,17 +1841,19 @@ TASK 1: ANALYZE, CLARIFY, AND PROBE
 - If the currentNodeText is longer than ideal for a mind map (more than 5-7 words), suggest a more concise keyword or short phrase
 - Formulate a single, powerful, open-ended Socratic question that challenges assumptions or explores implications
 
-TASK 2: INTELLIGENT SEARCH & SUMMARIZATION
-- Create an optimal search query based on the user's intent from the full context
-- Generate 3-4 distinct, highly relevant summary "cards" representing key facts, perspectives, or concepts
-- Each card should be exceptionally concise and directly useful for mind mapping
+TASK 2: INTELLIGENT CONTEXT & KNOWLEDGE SYNTHESIS
+- Generate 3-4 distinct, highly relevant knowledge cards with SPECIFIC FACTUAL CONTENT from your training data
+- Each card must contain ACTUAL information: specific facts, data, examples, names, dates, processes, or concrete details
+- Include specific bullet points with real facts, concrete examples, and actionable information
+- Provide clickable suggestions for expanding the mind map (these will be bolded and clickable in the UI)
 
 TASK 3: MIND MAP STRUCTURAL & CONNECTIVE INSIGHTS
 - Identify potential connections between the current node and other nodes in the map
 - Spot underdeveloped areas or gaps in the map structure
 - Suggest one high-level structural refinement or organizational improvement
+- Provide specific node expansion suggestions that can be added to the map
 
-Your entire output must be a single, valid JSON object following this structure:
+Your entire output must be a single, valid JSON object with NO trailing commas, proper escaping, and complete array/object closure. Follow this structure EXACTLY:
 
 {
   "analysis": {
@@ -737,11 +1870,15 @@ Your entire output must be a single, valid JSON object following this structure:
     "probingQuestion": "..."
   },
   "overviews": {
-    "searchQueryUsed": "...",
     "results": [
       {
-        "title": "...",
-        "summary": "..."
+        "title": "Knowledge-Based Title",
+        "summary": "Concrete facts and specific details from AI knowledge",
+        "detailed": "Detailed factual information with specifics from training data",
+        "keyPoints": ["Specific fact 1 with numbers/names/dates", "Concrete example 2", "Actual process or method 3"],
+        "takeaways": ["Actionable insight with specifics", "Practical application"],
+        "clickableSuggestions": ["Suggestion 1", "Suggestion 2"],
+        "source": "Local AI Knowledge"
       }
     ]
   },
@@ -759,7 +1896,8 @@ Your entire output must be a single, valid JSON object following this structure:
       {
         "type": "potential_subtopic",
         "description": "...",
-        "forNodeId": "..."
+        "forNodeId": "...",
+        "suggestedNodes": ["Node suggestion 1", "Node suggestion 2"]
       }
     ],
     "structuralSuggestion": {
@@ -770,43 +1908,91 @@ Your entire output must be a single, valid JSON object following this structure:
 }`;
 
             try {
-                // Use rate-limited API call for Flow Assistant
-                const response = await fetch(DEEPSEEK_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'deepseek-chat',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: systemPrompt
-                            },
-                            {
-                                role: 'user',
-                                content: userPrompt
+                // Use sophisticated multi-model system for Flow Assistant
+                const fullPrompt = `${systemPrompt}\n\n${userPrompt}\n\nCRITICAL: Return ONLY valid JSON. NO markdown formatting (**bold**, *italic*), NO code blocks, NO explanations. Pure JSON only.`;
+                const responseText = await callLocalAPIWithRateLimit(fullPrompt, 4000, priority, 'flow-assistant');
+                
+                if (responseText) {
+                    // Clean the response text
+                    let cleanedResponse = responseText.trim();
+                    
+                    // Remove markdown code blocks if present
+                    cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
+                    
+                    // Remove any text before the first { and after the last }
+                    const firstBrace = cleanedResponse.indexOf('{');
+                    const lastBrace = cleanedResponse.lastIndexOf('}');
+                    
+                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                        cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+                    }
+                    
+                    // In callFlowAssistantAPI, after the last JSON.parse attempt, add more robust cleaning and fallback:
+                    try {
+                        return JSON.parse(cleanedResponse);
+                    } catch (parseError) {
+                        console.log('First parse failed, trying structure fix...');
+                        let structureFixed = cleanedResponse;
+                        // Fix "overviews": [...] to "overviews": {"results": [...]}
+                        if (structureFixed.includes('"overviews": [')) {
+                            structureFixed = structureFixed.replace(/"overviews": \[/, '"overviews": {"results": [');
+                            // Find the end of the overviews array and close the object
+                            const mapInsightsIndex = structureFixed.indexOf('"mapInsights":');
+                            if (mapInsightsIndex > 0) {
+                                structureFixed = structureFixed.substring(0, mapInsightsIndex) + '},' + structureFixed.substring(mapInsightsIndex);
                             }
-                        ],
-                        temperature: 0.7,
-                        max_tokens: 2000,
-                        top_p: 0.95
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API request failed: ${response.status}`);
-                }
-
-                const data = await response.json();
-                if (data.choices && data.choices[0] && data.choices[0].message) {
-                    const responseText = data.choices[0].message.content;
-                    if (responseText) {
-                        // Extract JSON from response
-                        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                        if (jsonMatch) {
-                            return JSON.parse(jsonMatch[0]);
+                        }
+                        try {
+                            return JSON.parse(structureFixed);
+                        } catch (parseError2) {
+                            // Try to fix more issues: missing commas, unquoted property names, etc.
+                            let fixedJson = structureFixed;
+                            // Ensure property names are quoted
+                            fixedJson = fixedJson.replace(/([,{\s])(\w+)\s*:/g, '$1"$2":');
+                            // Remove trailing commas before } or ]
+                            fixedJson = fixedJson.replace(/,\s*([}\]])/g, '$1');
+                            // Remove any invalid trailing characters after the last }
+                            const lastBrace = fixedJson.lastIndexOf('}');
+                            if (lastBrace !== -1) fixedJson = fixedJson.substring(0, lastBrace + 1);
+                            // Add missing closing braces/brackets
+                            const openBraces = (fixedJson.match(/\{/g) || []).length;
+                            const closeBraces = (fixedJson.match(/\}/g) || []).length;
+                            const openBrackets = (fixedJson.match(/\[/g) || []).length;
+                            const closeBrackets = (fixedJson.match(/\]/g) || []).length;
+                            for (let i = 0; i < (openBraces - closeBraces); i++) fixedJson += '}';
+                            for (let i = 0; i < (openBrackets - closeBrackets); i++) fixedJson += ']';
+                            try {
+                                return JSON.parse(fixedJson);
+                            } catch (parseError3) {
+                                // Final fallback: log error and return safe structure
+                                console.error('Unable to fix JSON, returning fallback. Error:', parseError3, '\nRaw response:', responseText, '\nCleaned:', cleanedResponse, '\nFixed:', fixedJson);
+                                return {
+                                    error: true,
+                                    message: "Flow Assistant returned invalid data. Please try again or check your LLM output formatting.",
+                                    analysis: {
+                                        definitions: [],
+                                        keywordSuggestion: null,
+                                        probingQuestion: "What aspects of this topic would you like to explore further?"
+                                    },
+                                    overviews: {
+                                        results: [
+                                            {
+                                                title: "Invalid AI Response",
+                                                summary: "The Flow Assistant returned invalid data. Please try again.",
+                                                source: "Local AI Knowledge"
+                                            }
+                                        ]
+                                    },
+                                    mapInsights: {
+                                        potentialConnections: [],
+                                        underdevelopedAreas: [],
+                                        structuralSuggestion: {
+                                            type: "general_tip",
+                                            description: "Consider organizing related concepts closer together in your mind map for better visual flow."
+                                        }
+                                    }
+                                };
+                            }
                         }
                     }
                 }
@@ -825,11 +2011,11 @@ Your entire output must be a single, valid JSON object following this structure:
                         probingQuestion: "What aspects of this topic would you like to explore further?"
                     },
                     overviews: {
-                        searchQueryUsed: contextData.currentNodeText,
                         results: [
                             {
                                 title: "Service Unavailable",
-                                summary: "The Flow Assistant service is currently unavailable. Your mind map will continue to work normally."
+                                summary: "The Flow Assistant service is currently unavailable. Your mind map will continue to work normally.",
+                                source: "Local AI Knowledge"
                             }
                         ]
                     },
@@ -908,11 +2094,12 @@ Your entire output must be a single, valid JSON object following this structure:
         // Show Flow Assistant welcome message
         function showFlowAssistantWelcome() {
             const assistantMessages = document.getElementById('assistant-messages');
+            
             assistantMessages.innerHTML = `
                 <div id="assistant-welcome" class="assistant-message">
                     <div class="assistant-content">
                         <div class="assistant-name">🌊 Flow Assistant</div>
-                        <div class="assistant-text">Keeping you in the flow of ideas. I'll provide contextual insights and Google overview results to help expand your thinking without interruption.</div>
+                        <div class="assistant-text">Keeping you in the flow of ideas. I'll provide contextual insights using the knowledge from your local AI model to help expand your thinking without interruption.</div>
                     </div>
                 </div>
             `;
@@ -927,7 +2114,7 @@ Your entire output must be a single, valid JSON object following this structure:
                 <div class="assistant-message">
                     <div class="assistant-content">
                         <div class="assistant-name">🌊 Flow Assistant</div>
-                        <div class="assistant-text">Analyzing "${selectedNode.name}" and gathering comprehensive insights...</div>
+                        <div class="assistant-text">Analyzing "${selectedNode.name}" using local AI knowledge...</div>
                     </div>
                 </div>
             `;
@@ -939,14 +2126,24 @@ Your entire output must be a single, valid JSON object following this structure:
                 return;
             }
 
-            // Get structured insights from the Flow Assistant
-            const insights = await callFlowAssistantAPI(contextData);
-            
-            // Display insights in assistant area
-            if (insights) {
-                displayStructuredFlowInsights(selectedNode, insights);
-            } else {
-                // Fallback to simple insights if API fails
+            try {
+                // Get AI analysis using only local LLM knowledge
+                const insights = await callFlowAssistantAPI(contextData, 'medium');
+                
+                // Display the insights from local AI
+                if (insights) {
+                    displayStructuredFlowInsights(selectedNode, insights);
+                } else {
+                    // Fallback to simple insights if AI fails
+                    const fallbackContext = buildMindMapContext();
+                    const fallbackInsights = await generateFlowInsights(selectedNode, fallbackContext);
+                    displayFlowInsights(selectedNode, fallbackInsights);
+                }
+                
+            } catch (error) {
+                console.error('Flow Assistant activation error:', error);
+                
+                // Fallback to simple insights if everything fails
                 const fallbackContext = buildMindMapContext();
                 const fallbackInsights = await generateFlowInsights(selectedNode, fallbackContext);
                 displayFlowInsights(selectedNode, fallbackInsights);
@@ -970,7 +2167,7 @@ Format as JSON array: [{"title": "...", "content": "..."}]
 Focus on background information, context, examples, or interesting facts that would enrich understanding.`;
 
             try {
-                const response = await callDeepSeekAPI(prompt, 700);
+                const response = await callLocalAPI(prompt, 700);
                 if (response) {
                     const jsonMatch = response.match(/\[[\s\S]*\]/);
                     if (jsonMatch) {
@@ -1075,31 +2272,41 @@ Focus on background information, context, examples, or interesting facts that wo
             // Build the analysis section
             let analysisHTML = '';
             if (insights.analysis) {
-                                 // Definitions
+                // Definitions
                 if (insights.analysis.definitions && insights.analysis.definitions.length > 0) {
                     const definitionsHTML = insights.analysis.definitions.map(def => `
                         <div class="flow-insight" onclick="expandInsight(this)">
                             <div class="insight-title">📚 ${def.term}</div>
                             <div class="insight-preview">${def.definition.substring(0, 120)}</div>
-                            <div class="insight-full" style="display: none;">${def.definition}</div>
+                            <div class="insight-full" style="display: none;">
+                                ${def.definition}
+                                ${generateInsightActions()}
+                            </div>
                         </div>
                     `).join('');
                     analysisHTML += definitionsHTML;
                 }
 
-                // Keyword suggestion
-                if (insights.analysis.keywordSuggestion && insights.analysis.keywordSuggestion.suggestedKeyword !== insights.analysis.keywordSuggestion.originalText) {
-                    analysisHTML += `
-                        <div class="flow-insight keyword-suggestion" onclick="expandInsight(this)">
-                            <div class="insight-title">✏️ Suggested Refinement</div>
-                            <div class="insight-preview">Consider: "${insights.analysis.keywordSuggestion.suggestedKeyword}"</div>
-                            <div class="insight-full" style="display: none;">
-                                <strong>Original:</strong> "${insights.analysis.keywordSuggestion.originalText}"<br/>
-                                <strong>Suggested:</strong> "${insights.analysis.keywordSuggestion.suggestedKeyword}"<br/>
-                                <em>Click to apply this suggestion to your node.</em>
+                // Keyword suggestion (handle both simple string and object formats)
+                const keywordSuggestion = insights.analysis.keywordSuggestion;
+                if (keywordSuggestion && keywordSuggestion !== null) {
+                    const suggestedText = typeof keywordSuggestion === 'string' ? keywordSuggestion : keywordSuggestion.suggestedKeyword;
+                    const originalText = typeof keywordSuggestion === 'string' ? node.name : keywordSuggestion.originalText;
+                    
+                    if (suggestedText && suggestedText !== originalText) {
+                        analysisHTML += `
+                            <div class="flow-insight keyword-suggestion" onclick="expandInsight(this)">
+                                <div class="insight-title">✏️ Suggested Refinement</div>
+                                <div class="insight-preview">Consider: "${suggestedText}"</div>
+                                <div class="insight-full" style="display: none;">
+                                    <strong>Original:</strong> "${originalText}"<br/>
+                                    <strong>Suggested:</strong> "${suggestedText}"<br/>
+                                    <em>Click to apply this suggestion to your node.</em>
+                                    ${generateInsightActions()}
+                                </div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    }
                 }
 
                 // Probing question
@@ -1108,22 +2315,65 @@ Focus on background information, context, examples, or interesting facts that wo
                         <div class="flow-insight probing-question" onclick="expandInsight(this)">
                             <div class="insight-title">🤔 Think Deeper</div>
                             <div class="insight-preview">${insights.analysis.probingQuestion}</div>
-                            <div class="insight-full" style="display: none;">${insights.analysis.probingQuestion}</div>
+                            <div class="insight-full" style="display: none;">
+                                ${insights.analysis.probingQuestion}
+                                ${generateInsightActions()}
+                            </div>
                         </div>
                     `;
                 }
             }
 
-            // Build the overviews section
+            // Build the overviews section (knowledge from local AI)
             let overviewsHTML = '';
             if (insights.overviews && insights.overviews.results) {
-                overviewsHTML = insights.overviews.results.map(result => `
-                    <div class="flow-insight overview-card" onclick="expandInsight(this)">
-                        <div class="insight-title">🔍 ${result.title}</div>
-                        <div class="insight-preview">${result.summary}</div>
-                        <div class="insight-full" style="display: none;">${result.summary}</div>
-                    </div>
-                `).join('');
+                
+                overviewsHTML += insights.overviews.results.map(result => {
+                    // Build detailed content with key points and takeaways
+                    let detailedContent = result.detailed || result.summary;
+                    
+                    if (result.keyPoints && result.keyPoints.length > 0) {
+                        detailedContent += '<br/><br/><strong>Key Points:</strong><ul>';
+                        result.keyPoints.forEach(point => {
+                            detailedContent += `<li>${point}</li>`;
+                        });
+                        detailedContent += '</ul>';
+                    }
+                    
+                    if (result.takeaways && result.takeaways.length > 0) {
+                        detailedContent += '<br/><strong>Key Takeaways:</strong><ul>';
+                        result.takeaways.forEach(takeaway => {
+                            detailedContent += `<li>${takeaway}</li>`;
+                        });
+                        detailedContent += '</ul>';
+                    }
+                    
+                    if (result.clickableSuggestions && result.clickableSuggestions.length > 0) {
+                        detailedContent += `
+                            <div class="suggestion-pills-container">
+                                <strong>💡 Quick Add:</strong>
+                                <div class="suggestion-pills">`;
+                        result.clickableSuggestions.forEach(suggestion => {
+                            const suggestionText = typeof suggestion === 'string' ? suggestion : String(suggestion);
+                            detailedContent += `<button class="suggestion-pill" data-suggestion="${suggestionText.replace(/"/g, '&quot;')}">${suggestionText}</button>`;
+                        });
+                        detailedContent += `</div>
+                            </div>`;
+                    }
+                    
+                    return `
+                        <div class="flow-insight overview-card" onclick="expandInsight(this)">
+                            <div class="insight-title">🧠 ${result.title}</div>
+                            <div class="insight-preview">${result.summary}</div>
+                            <div class="insight-full" style="display: none;">
+                                ${detailedContent}
+                                ${result.source ? `<br/><br/><strong>Source:</strong> ${result.source}` : ''}
+                                <br/><em>Knowledge from local AI model</em>
+                                ${generateInsightActions()}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             }
 
             // Build the map insights section
@@ -1137,7 +2387,9 @@ Focus on background information, context, examples, or interesting facts that wo
                             <div class="insight-preview">${connection.description}</div>
                             <div class="insight-full" style="display: none;">
                                 ${connection.description}<br/>
-                                <em>Relationship: ${connection.suggestedRelationshipPhrase}</em>
+                                <em>Relationship: ${connection.suggestedRelationshipPhrase || 'relates to'}</em><br/>
+                                <small>Between nodes: ${connection.fromNodeId || 'current'} → ${connection.toNodeId || 'target'}</small>
+                                ${generateInsightActions()}
                             </div>
                         </div>
                     `).join('');
@@ -1145,13 +2397,32 @@ Focus on background information, context, examples, or interesting facts that wo
 
                 // Underdeveloped areas
                 if (insights.mapInsights.underdevelopedAreas && insights.mapInsights.underdevelopedAreas.length > 0) {
-                    mapInsightsHTML += insights.mapInsights.underdevelopedAreas.map(area => `
-                        <div class="flow-insight gap-insight" onclick="expandInsight(this)">
-                            <div class="insight-title">💡 Potential Gap</div>
-                            <div class="insight-preview">${area.description}</div>
-                            <div class="insight-full" style="display: none;">${area.description}</div>
-                        </div>
-                    `).join('');
+                    mapInsightsHTML += insights.mapInsights.underdevelopedAreas.map(area => {
+                        let areaContent = area.description;
+                        if (area.suggestedNodes && area.suggestedNodes.length > 0) {
+                            areaContent += `
+                                <div class="area-suggestions">
+                                    <strong>🎯 Expand This Area:</strong>
+                                    <div class="suggestion-pills">`;
+                            area.suggestedNodes.forEach(nodeText => {
+                                const nodeTextStr = typeof nodeText === 'string' ? nodeText : String(nodeText);
+                                areaContent += `<button class="suggestion-pill secondary" data-suggestion="${nodeTextStr.replace(/"/g, '&quot;')}">${nodeTextStr}</button>`;
+                            });
+                            areaContent += `</div>
+                                </div>`;
+                        }
+                        return `
+                            <div class="flow-insight gap-insight" onclick="expandInsight(this)">
+                                <div class="insight-title">💡 Potential Gap</div>
+                                <div class="insight-preview">${area.description}</div>
+                                <div class="insight-full" style="display: none;">
+                                    ${areaContent}<br/>
+                                    <small>For node: ${area.forNodeId || 'current area'}</small>
+                                    ${generateInsightActions()}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
                 }
 
                 // Structural suggestion
@@ -1160,9 +2431,77 @@ Focus on background information, context, examples, or interesting facts that wo
                         <div class="flow-insight structural-suggestion" onclick="expandInsight(this)">
                             <div class="insight-title">🏗️ Structure Tip</div>
                             <div class="insight-preview">${insights.mapInsights.structuralSuggestion.description}</div>
-                            <div class="insight-full" style="display: none;">${insights.mapInsights.structuralSuggestion.description}</div>
+                            <div class="insight-full" style="display: none;">
+                                ${insights.mapInsights.structuralSuggestion.description}
+                                ${generateInsightActions()}
+                            </div>
                         </div>
                     `;
+                }
+            }
+
+            // Build Live Suggestions card if appropriate
+            let liveSuggestionsHTML = '';
+            const inputText = nodeInput.value.trim();
+            if (inputText.length >= 3 && inputText.toLowerCase().includes(node.name.toLowerCase().substring(0, 3))) {
+                try {
+                    // Generate live suggestions based on current input context
+                    const contextPrompt = `The user is working on a mindmap about "${node.name}" and typing "${inputText}". Provide 4 helpful suggestions:
+1. A refined/improved version of what they're typing
+2. A related concept they might want to explore
+3. A follow-up question or direction  
+4. A practical next step
+
+Format as JSON: {"suggestions": ["suggestion1", "suggestion2", "suggestion3", "suggestion4"]}`;
+                    
+                    callLocalAPIWithRateLimit(contextPrompt, 400, 'medium', 'live-suggestions').then(response => {
+                        if (response) {
+                            let suggestions = [];
+                            try {
+                                if (response.includes('{')) {
+                                    const cleanedResponse = response.substring(response.indexOf('{'), response.lastIndexOf('}') + 1);
+                                    const parsed = JSON.parse(cleanedResponse);
+                                    suggestions = parsed.suggestions || [];
+                                } else {
+                                    suggestions = response.split('\n')
+                                        .filter(line => line.trim() && !line.includes('{') && !line.includes('}'))
+                                        .map(line => line.replace(/^\d+\.?\s*/, '').replace(/^["-•]\s*/, '').trim())
+                                        .filter(s => s.length > 0)
+                                        .slice(0, 4);
+                                }
+                            } catch (parseError) {
+                                suggestions = response.split('\n').filter(line => line.trim()).slice(0, 4);
+                            }
+                            
+                            if (suggestions && suggestions.length > 0) {
+                                // Add Live Suggestions card to existing insights
+                                const liveSuggestionsCard = createLiveSuggestionsCard(inputText, suggestions);
+                                const currentInsights = document.querySelector('.flow-insights');
+                                if (currentInsights) {
+                                    currentInsights.insertAdjacentHTML('beforeend', liveSuggestionsCard);
+                                    
+                                    // Add click handlers for live suggestion pills
+                                    const liveSuggestionPills = currentInsights.querySelectorAll('.suggestion-pill.live-suggestion');
+                                    liveSuggestionPills.forEach(pill => {
+                                        pill.addEventListener('click', (e) => {
+                                            e.stopPropagation();
+                                            const suggestionText = pill.dataset.suggestion;
+                                            nodeInput.value = suggestionText;
+                                            nodeInput.focus();
+                                            pill.style.transform = 'scale(0.95)';
+                                            pill.style.opacity = '0.7';
+                                            setTimeout(() => {
+                                                pill.style.transform = '';
+                                                pill.style.opacity = '';
+                                            }, 200);
+                                        });
+                                    });
+                                }
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.log('Live suggestions card error:', error);
                 }
             }
 
@@ -1186,31 +2525,188 @@ Focus on background information, context, examples, or interesting facts that wo
             keywordSuggestions.forEach(suggestion => {
                 suggestion.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (insights.analysis.keywordSuggestion && confirm(`Apply suggested refinement: "${insights.analysis.keywordSuggestion.suggestedKeyword}"?`)) {
-                        node.name = insights.analysis.keywordSuggestion.suggestedKeyword;
+                    const keywordSuggestion = insights.analysis.keywordSuggestion;
+                    const suggestedText = typeof keywordSuggestion === 'string' ? keywordSuggestion : keywordSuggestion?.suggestedKeyword;
+                    
+                    if (suggestedText && confirm(`Apply suggested refinement: "${suggestedText}"?`)) {
+                        node.name = suggestedText;
                         updateGraph();
-                        // Re-run Flow Assistant with the updated node
-                        setTimeout(() => activateFlowAssistant(node), 500);
+                        // Re-run Flow Assistant with the updated node (10x faster)
+                        setTimeout(() => activateFlowAssistant(node), 50);
                     }
                 });
             });
+            
+            // Add click handlers for all clickable suggestions (both pills and legacy spans)
+            const clickableSuggestions = assistantMessages.querySelectorAll('.clickable-suggestion, .suggestion-pill');
+            clickableSuggestions.forEach(suggestion => {
+                suggestion.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const suggestionText = suggestion.dataset.suggestion;
+                    
+                    // Handle live suggestions differently (they update the input)
+                    if (suggestion.classList.contains('live-suggestion')) {
+                        if (suggestionText) {
+                            // Update the input field with the suggestion
+                            nodeInput.value = suggestionText;
+                            nodeInput.focus();
+                            
+                            // Visual feedback
+                            suggestion.style.transform = 'scale(0.95)';
+                            suggestion.style.opacity = '0.7';
+                            setTimeout(() => {
+                                suggestion.style.transform = '';
+                                suggestion.style.opacity = '';
+                            }, 200);
+                            
+                            // Remove the typing overlay after selection
+                            setTimeout(() => {
+                                const overlay = assistantMessages.querySelector('.typing-suggestions-overlay');
+                                if (overlay) overlay.remove();
+                            }, 500);
+                        }
+                        return;
+                    }
+                    
+                    // Handle regular Flow Assistant suggestions (create child nodes)
+                    if (suggestionText && selectedNode) {
+                        // Visual feedback - animate the clicked element
+                        if (suggestion.classList.contains('suggestion-pill')) {
+                            suggestion.style.transform = 'scale(0.95)';
+                            suggestion.style.opacity = '0.7';
+                            setTimeout(() => {
+                                suggestion.style.transform = '';
+                                suggestion.style.opacity = '';
+                            }, 200);
+                        }
+                        
+                        // Add the suggestion as a child node to the current selected node
+                        const newNode = addNode(suggestionText, selectedNode);
+                        if (newNode) {
+                            updateGraph();
+                            console.log(`✨ Added suggestion "${suggestionText}" as child of "${selectedNode.name}"`);
+                            
+                            // Auto-select the new node and trigger Flow Assistant
+                            setTimeout(() => {
+                                selectNode(newNode);
+                                queueFlowAssistantUpdate(newNode.id, 'suggestion added', 'high');
+                            }, 100);
+                        }
+                    }
+                });
+            });
+            
+            // Auto-place definitions under terms
+            if (insights.analysis && insights.analysis.definitions) {
+                insights.analysis.definitions.forEach(def => {
+                    // Find if the term appears in the current node or nearby nodes
+                    const termLower = def.term.toLowerCase();
+                    if (node.name.toLowerCase().includes(termLower)) {
+                        // Check if definition already exists as a child
+                        const existingDef = nodes.find(n => 
+                            n.parent === node.id && 
+                            n.name.toLowerCase().includes('definition') ||
+                            n.name.toLowerCase().includes(termLower)
+                        );
+                        
+                        if (!existingDef) {
+                            // Auto-add definition as a child node (10x faster)
+                            setTimeout(() => {
+                                const defNode = addNode(`📖 ${def.term}: ${def.definition}`, node);
+                                if (defNode) {
+                                    updateGraph();
+                                }
+                            }, 200);
+                        }
+                    }
+                });
+            }
         }
 
-        // Expand/collapse insight card
+        // Expand/collapse insight card - simplified version since content is pre-loaded
         function expandInsight(element) {
             const preview = element.querySelector('.insight-preview');
             const full = element.querySelector('.insight-full');
             
-            if (full.style.display === 'none') {
+            if (full.style.display === 'none' || full.style.display === '') {
+                // Expanding the card
                 preview.style.display = 'none';
                 full.style.display = 'block';
                 element.classList.add('expanded');
             } else {
+                // Collapsing the card
                 preview.style.display = 'block';
                 full.style.display = 'none';
                 element.classList.remove('expanded');
             }
         }
+
+        // Generate AI-powered insight summary
+        async function generateInsightSummary(title, preview, context) {
+            const prompt = `You are providing an AI overview for a Flow Assistant insight card.
+
+Insight Title: ${title}
+Insight Preview: ${preview}
+Context: ${context}
+
+Generate a comprehensive but concise overview (2-3 paragraphs, max 200 words) that:
+1. Explains the insight in detail
+2. Provides actionable suggestions or deeper analysis
+3. Relates to the current context when relevant
+4. Uses a helpful, informative tone
+
+Format as plain text with natural paragraph breaks.
+
+CRITICAL: Your response must be VALID JSON only. Do not include any text before or after the JSON object. Ensure all strings are properly escaped and arrays/objects are properly closed. NO trailing commas allowed.`;
+
+            try {
+                const response = await callLocalAPIWithRateLimit(prompt, 300, 'high', 'standard');
+                return response || 'Unable to generate detailed overview at this time.';
+            } catch (error) {
+                throw new Error('Failed to generate AI overview');
+            }
+        }
+
+        // Helper function to get context from a node
+        function getNodeContext(node) {
+            const children = nodes.filter(n => n.parent === node.id).map(n => n.data.name);
+            const siblings = node.parent ? nodes.filter(n => n.parent === node.parent && n.id !== node.id).map(n => n.data.name) : [];
+            
+            let context = [];
+            if (children.length > 0) context.push(`children: ${children.slice(0, 3).join(', ')}`);
+            if (siblings.length > 0) context.push(`siblings: ${siblings.slice(0, 3).join(', ')}`);
+            
+            return context.length > 0 ? context.join('; ') : 'isolated concept';
+        }
+        
+        // Make expandInsight available globally
+        window.expandInsight = expandInsight;
+        
+        // Global event listener for live suggestions (since they can appear anytime)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('live-suggestion')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const suggestionText = e.target.getAttribute('data-suggestion');
+                
+                if (suggestionText) {
+                    // Update the input field with the suggestion
+                    nodeInput.value = suggestionText;
+                    nodeInput.focus();
+                    
+                    // Visual feedback
+                    e.target.style.transform = 'scale(0.95)';
+                    e.target.style.opacity = '0.7';
+                    setTimeout(() => {
+                        e.target.style.transform = '';
+                        e.target.style.opacity = '';
+                    }, 200);
+                    
+                    // Live suggestions are now handled by Flow Assistant cards
+                }
+                return false;
+            }
+        });
 
         // Helper function to escape strings for JavaScript
         function escapeForJs(text) {
@@ -1301,7 +2797,7 @@ Focus on background information, context, examples, or interesting facts that wo
             }
         };
 
-        let currentTheme = "Midnight Scholar"; // Default theme
+        let currentTheme = "Crimson Dusk"; // Default theme
         let dynastyPalettes = themeDefinitions[currentTheme].dynastyPalettes;
         
         // Darken Midnight Scholar background
@@ -1534,7 +3030,7 @@ Focus on background information, context, examples, or interesting facts that wo
 Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             
             // Run async without blocking
-            callDeepSeekAPI(prompt, 200).then(response => {
+            callLocalAPI(prompt, 200).then(response => {
                 if (response) {
                     try {
                         const suggestions = JSON.parse(response);
@@ -1653,7 +3149,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
 
             const prompt = `Suggest 4 child nodes for "${node.name}" (2-3 words max). Return JSON array only.`;
 
-            const response = await callDeepSeekAPIWithRateLimit(prompt, 100, 'low'); // Shorter limit for JSON array
+            const response = await callLocalAPIWithRateLimit(prompt, 100, 'low'); // Shorter limit for JSON array
             if (response) {
                 try {
                     const suggestions = JSON.parse(response);
@@ -1860,228 +3356,88 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             });
         }
         
-        function forceLinkRepel() {
-            const repulsionStrength = 1.2; // Increased strength for better separation
-            const repulsionDistance = 45;  // Increased radius for wider clearance
-            const textRepulsionStrength = 0.8; // Special strength for text elements
-            const linkRepulsionStrength = 0.6; // Strength for link-to-link repulsion
 
-            return function(alpha) {
-                // Node-to-link repulsion
-                for (const node of nodes) {
-                    // Skip first generation nodes - they're far enough from center that link repulsion isn't needed
-                    // and can cause unwanted snapping behavior
-                    if (node.depth === 1) continue;
-                    
-                    for (const link of links) {
-                        // Skip if the node is one of the link's endpoints
-                        if (link.source === node || link.target === node) continue;
 
-                        const x1 = link.source.x;
-                        const y1 = link.source.y;
-                        const x2 = link.target.x;
-                        const y2 = link.target.y;
-                        const x0 = node.x;
-                        const y0 = node.y;
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(d => {
+                // Dynamically increase link distance for expanded/list/media nodes
+                if (d.target.isExpanded || d.target.isListNode || d.target.isMediaNode) return 220;
+                if (d.target.depth === 1) return 140;
+                return d.targetDistance || 90;
+            }).strength(0.12)) // Slightly stronger for more separation
+            .force("charge", d3.forceManyBody().strength(d => {
+                if (d.depth === 0) return -1000;
+                if (d.depth === 1) return -700;
+                if (d.isExpanded || d.isListNode || d.isMediaNode) return -600;
+                return -350;
+            }))
+            .force("y", d3.forceY(container.clientHeight / 2).strength(0.04))
+            .force("collide", d3.forceCollide().radius(d => {
+                // Use bounding box for expanded/list/media nodes
+                if (d.isExpanded || d.isListNode || d.isMediaNode) return 120;
+                if (d.depth === 1) return 65;
+                if (d.depth === 0) return d.radius + 45;
+                return d.radius + 24;
+            }).strength(1.0)) // Max strength for no overlap
+            .force("linkRepel", forceLinkRepel())
+            .force("textRepel", forceTextRepel())
+            .force("bounds", forceViewportBounds())
+            .force("nodeRepulsion", forceNodeRepulsion().strength(0.04)) // Stronger for more even spacing
+            .velocityDecay(0.68)
+            .alphaDecay(0.035)
+            .alphaMin(0.001);
 
-                        // Find the closest point on the link segment to the node
-                        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
-                        if (l2 === 0) continue; // Skip if link has zero length
+        const masterGroup = svg.append("g");
+        let linkGroup = masterGroup.append("g").attr("class", "link-layer");
+        let nodeGroup = masterGroup.append("g");
+        
+        const zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (event) => {
+            masterGroup.attr("transform", event.transform);
+            updateDynamicFontSizes(); // Update font sizes on zoom
+        });
+        svg.call(zoom);
 
-                        let t = ((x0 - x1) * (x2 - x1) + (y0 - y1) * (y2 - y1)) / l2;
-                        t = Math.max(0, Math.min(1, t)); // Clamp t to the [0, 1] range
+        d3.select(container).on('click', handleBackgroundClick);
 
-                        const closestX = x1 + t * (x2 - x1);
-                        const closestY = y1 + t * (y2 - y1);
-
-                        const dx = x0 - closestX;
-                        const dy = y0 - closestY;
-                        const d = Math.sqrt(dx * dx + dy * dy);
-
-                        // If the node is within the repulsion distance, apply a force
-                        if (d < repulsionDistance && d > 0) {
-                            const force = repulsionStrength * (1 - d / repulsionDistance) * alpha;
-                            const forceX = (dx / d) * force;
-                            const forceY = (dy / d) * force;
-
-                            // Apply repulsion force to the node
-                            node.vx += forceX;
-                            node.vy += forceY;
-                            
-                            // Apply a counter-force to the link's endpoints to maintain stability
-                            const tInv = 1 - t;
-                            link.source.vx -= forceX * tInv * 0.3;
-                            link.source.vy -= forceY * tInv * 0.3;
-                            link.target.vx -= forceX * t * 0.3;
-                            link.target.vy -= forceY * t * 0.3;
-                        }
-                    }
-                }
-
-                // Link-to-link repulsion (prevent links from crossing too closely)
-                for (let i = 0; i < links.length; i++) {
-                    for (let j = i + 1; j < links.length; j++) {
-                        const link1 = links[i];
-                        const link2 = links[j];
-                        
-                        // Skip if links share a common node
-                        if (link1.source === link2.source || link1.source === link2.target || 
-                            link1.target === link2.source || link1.target === link2.target) continue;
-
-                        // Calculate midpoints of both links
-                        const mid1X = (link1.source.x + link1.target.x) / 2;
-                        const mid1Y = (link1.source.y + link1.target.y) / 2;
-                        const mid2X = (link2.source.x + link2.target.x) / 2;
-                        const mid2Y = (link2.source.y + link2.target.y) / 2;
-
-                        const dx = mid1X - mid2X;
-                        const dy = mid1Y - mid2Y;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-
-                        // Apply repulsion if links are too close
-                        if (distance < 30 && distance > 0) {
-                            const force = linkRepulsionStrength * (1 - distance / 30) * alpha;
-                            const forceX = (dx / distance) * force;
-                            const forceY = (dy / distance) * force;
-
-                            // Push link endpoints away from each other
-                            link1.source.vx += forceX * 0.25;
-                            link1.source.vy += forceY * 0.25;
-                            link1.target.vx += forceX * 0.25;
-                            link1.target.vy += forceY * 0.25;
-                            
-                            link2.source.vx -= forceX * 0.25;
-                            link2.source.vy -= forceY * 0.25;
-                            link2.target.vx -= forceX * 0.25;
-                            link2.target.vy -= forceY * 0.25;
-                        }
-                    }
-                }
-
-                // Text-to-link repulsion (push text away from crossing links)
-                nodes.forEach(node => {
-                    // Only apply to nodes that have visible text (not expanded/media/list nodes)
-                    if (node.isExpanded || node.isListNode || node.isMediaNode) return;
-                    
-                    // Skip first generation nodes - they're positioned far from center and don't need text repulsion
-                    if (node.depth === 1) return;
-
-                    // Calculate text position based on node type
-                    const textX = node.x;
-                    let textY, textRadius;
-                    
-                    if (node.depth === 0) {
-                        // Central node: text is below the circle
-                        textY = node.y + 60;
-                        textRadius = 45; // Larger radius for central node text
-                    } else if (node.depth === 1) {
-                        // First generation: text is centered inside the circle
-                        textY = node.y;
-                        textRadius = 60; // Much larger radius since text is inside and wider
-                    } else {
-                        // Other generations: text is below the circle
-                        textY = node.y + node.radius + 12;
-                        textRadius = 25; // Standard radius for text below
-                    }
-
-                    links.forEach(link => {
-                        // Skip links connected to this node
-                        if (link.source === node || link.target === node) return;
-
-                        const x1 = link.source.x;
-                        const y1 = link.source.y;
-                        const x2 = link.target.x;
-                        const y2 = link.target.y;
-
-                        // Find closest point on link to text position
-                        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
-                        if (l2 === 0) return;
-
-                        let t = ((textX - x1) * (x2 - x1) + (textY - y1) * (y2 - y1)) / l2;
-                        t = Math.max(0, Math.min(1, t));
-
-                        const closestX = x1 + t * (x2 - x1);
-                        const closestY = y1 + t * (y2 - y1);
-
-                        const dx = textX - closestX;
-                        const dy = textY - closestY;
-                        const d = Math.sqrt(dx * dx + dy * dy);
-
-                        // Apply repulsion if link is too close to text
-                        if (d < textRadius && d > 0) {
-                            const force = textRepulsionStrength * (1 - d / textRadius) * alpha;
-                            const forceX = (dx / d) * force;
-                            const forceY = (dy / d) * force;
-
-                            // Push the node (and thus its text) away from the link
-                            node.vx += forceX;
-                            node.vy += forceY;
-
-                            // Small counter-force on link endpoints
-                            const tInv = 1 - t;
-                            link.source.vx -= forceX * tInv * 0.1;
-                            link.source.vy -= forceY * tInv * 0.1;
-                            link.target.vx -= forceX * t * 0.1;
-                            link.target.vy -= forceY * t * 0.1;
-                        }
-                    });
-                });
+        // Helper function to find closest point on a line segment
+        function getClosestPointOnLine(lineStart, lineEnd, point) {
+            const A = point.x - lineStart.x;
+            const B = point.y - lineStart.y;
+            const C = lineEnd.x - lineStart.x;
+            const D = lineEnd.y - lineStart.y;
+            
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            
+            if (lenSq === 0) return lineStart; // Line is a point
+            
+            let param = dot / lenSq;
+            
+            // Clamp to line segment
+            if (param < 0) param = 0;
+            if (param > 1) param = 1;
+            
+            return {
+                x: lineStart.x + param * C,
+                y: lineStart.y + param * D
             };
         }
 
-        // Viewport boundary force to keep nodes within visible area
-        function forceViewportBounds() {
-            return function(alpha) {
-                const transform = d3.zoomTransform(svg.node());
-                const margin = 50; // Margin from viewport edges
-                
-                nodes.forEach(node => {
-                    // Skip first generation nodes that are pinned - let user position them freely
-                    if (node.depth === 1 && (node.fx !== null || node.fy !== null)) return;
-                    // Convert node position to screen coordinates
-                    const screenX = (node.x * transform.k) + transform.x;
-                    const screenY = (node.y * transform.k) + transform.y;
-                    
-                    // Get node radius in screen space
-                    const nodeRadius = (node.radius || 20) * transform.k;
-                    
-                    // Check boundaries and apply corrective forces
-                    if (screenX - nodeRadius < margin) {
-                        node.vx += (margin - (screenX - nodeRadius)) * alpha * 0.1;
-                    }
-                    if (screenX + nodeRadius > container.clientWidth - margin) {
-                        node.vx -= ((screenX + nodeRadius) - (container.clientWidth - margin)) * alpha * 0.1;
-                    }
-                    if (screenY - nodeRadius < margin) {
-                        node.vy += (margin - (screenY - nodeRadius)) * alpha * 0.1;
-                    }
-                    if (screenY + nodeRadius > container.clientHeight - margin) {
-                        node.vy -= ((screenY + nodeRadius) - (container.clientHeight - margin)) * alpha * 0.1;
-                    }
-                });
-            };
-        }
-
-        // Custom force to prevent text overlap with other text and connectors
+        // Refactored forceTextRepel to use d3.quadtree
         function forceTextRepel() {
             let strength = 0.3;
             let textNodes = [];
-            
             function force(alpha) {
-                const textRepelDistance = 25; // Minimum distance between text elements
-                const linkRepelDistance = 15; // Minimum distance from links
-                
+                const textRepelDistance = 25;
+                const linkRepelDistance = 15;
                 // Get current text positions
                 textNodes = [];
                 nodeGroup.selectAll('.node').each(function(d) {
                     if (!d.isExpanded && !d.isListNode && !d.isMediaNode) {
                         const textElement = d3.select(this).select('text');
                         const transform = textElement.attr('transform');
-                        
-                        // Parse transform to get actual position
                         let textX = d.x;
                         let textY = d.y;
-                        
                         if (transform) {
                             const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
                             if (translateMatch) {
@@ -2160,67 +3516,46 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             
             return force;
         }
-        
-        // Helper function to find closest point on a line segment
-        function getClosestPointOnLine(lineStart, lineEnd, point) {
-            const A = point.x - lineStart.x;
-            const B = point.y - lineStart.y;
-            const C = lineEnd.x - lineStart.x;
-            const D = lineEnd.y - lineStart.y;
-            
-            const dot = A * C + B * D;
-            const lenSq = C * C + D * D;
-            
-            if (lenSq === 0) return lineStart; // Line is a point
-            
-            let param = dot / lenSq;
-            
-            // Clamp to line segment
-            if (param < 0) param = 0;
-            if (param > 1) param = 1;
-            
-            return {
-                x: lineStart.x + param * C,
-                y: lineStart.y + param * D
-            };
-        }
 
-        const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.targetDistance).strength(0.08)) // Reduced from 0.1
-            .force("charge", d3.forceManyBody().strength(d => {
-                if (d.depth === 0) return -800; // Strong repulsion for central node
-                if (d.depth === 1) return -500; // Stronger repulsion for first generation to prevent overlap
-                return -300; // Normal repulsion for other nodes
-            }))
-            .force("y", d3.forceY(container.clientHeight / 2).strength(0.03)) // Reduced from 0.04
-            .force("collide", d3.forceCollide().radius(d => {
-                // First generation nodes need much larger collision radius due to text inside
-                if (d.depth === 1) {
-                    return 65; // Large radius to account for text inside the node
-                } else if (d.depth === 0) {
-                    return d.radius + 45; // Central node with text below
-                } else {
-                    return d.radius + 20; // Other nodes with text below
+        // Simple force to push nodes away from each other
+        function forceNodeRepulsion() {
+            let nodes;
+            let strength = 0.02;
+
+            function force() {
+                if (!nodes) return;
+                
+                for (let i = 0; i < nodes.length; i++) {
+                    const nodeA = nodes[i];
+                    if (nodeA.fx !== undefined || nodeA.fy !== undefined) continue;
+                    
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const nodeB = nodes[j];
+                        if (nodeB.fx !== undefined || nodeB.fy !== undefined) continue;
+                        
+                        const dx = nodeA.x - nodeB.x;
+                        const dy = nodeA.y - nodeB.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance > 0 && distance < 100) {
+                            const force = strength / distance;
+                            const fx = (dx / distance) * force;
+                            const fy = (dy / distance) * force;
+                            
+                            nodeA.vx += fx;
+                            nodeA.vy += fy;
+                            nodeB.vx -= fx;
+                            nodeB.vy -= fy;
+                        }
+                    }
                 }
-            }).strength(0.8)) // Increased strength for better separation
-            .force("linkRepel", forceLinkRepel()) // The new custom force
-            .force("textRepel", forceTextRepel()) // Text repelling force to prevent overlap
-            .force("bounds", forceViewportBounds()) // Keep nodes within viewport
-            .velocityDecay(0.7) // Increased from 0.6 for gentler movement
-            .alphaDecay(0.04) // Reduced from 0.05 for slower cooldown
-            .alphaMin(0.001); // Lower minimum for better responsiveness
+            }
 
-        const masterGroup = svg.append("g");
-        let linkGroup = masterGroup.append("g").attr("class", "link-layer");
-        let nodeGroup = masterGroup.append("g");
-        
-        const zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (event) => {
-            masterGroup.attr("transform", event.transform);
-            updateDynamicFontSizes(); // Update font sizes on zoom
-        });
-        svg.call(zoom);
+            force.initialize = function(_) { nodes = _; };
+            force.strength = function(_) { return arguments.length ? (strength = _, force) : strength; };
 
-        d3.select(container).on('click', handleBackgroundClick);
+            return force;
+        }
 
         // --- Core Functions ---
         function updateGraph() {
@@ -2460,7 +3795,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                                     } else if (action === 'Solutions') {
                                         prompt = `Suggest practical solutions or approaches for "${d.name}".`;
                                     }
-                                    const aiResponse = await callDeepSeekAPIWithRateLimit(prompt, 260, 'high');
+                                    const aiResponse = await callLocalAPIWithRateLimit(prompt, 260, 'high', 'standard');
                                     if (aiResponse) {
                                         const currentNotes = d.notes || '';
                                         const newContent = aiResponse;
@@ -3220,7 +4555,35 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
         simulation.on("tick", () => {
             linkGroup.selectAll(".link").attr("d", generateBranchPath);
             nodeGroup.selectAll(".node").attr("transform", d => `translate(${d.x},${d.y})`);
-            updateDynamicFontSizes(); // Update font sizes on every tick
+            
+            // Post-tick bounding box overlap resolver
+            const expandedNodes = nodes.filter(n => n.isExpanded || n.isListNode || n.isMediaNode);
+            for (let i = 0; i < expandedNodes.length; i++) {
+                for (let j = i + 1; j < expandedNodes.length; j++) {
+                    const a = expandedNodes[i];
+                    const b = expandedNodes[j];
+                    // Assume 200x120 bounding box for expanded nodes
+                    const ax1 = a.x - 100, ax2 = a.x + 100, ay1 = a.y - 60, ay2 = a.y + 60;
+                    const bx1 = b.x - 100, bx2 = b.x + 100, by1 = b.y - 60, by2 = b.y + 60;
+                    if (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1) {
+                        // Overlap detected, nudge apart
+                        const dx = b.x - a.x;
+                        const dy = b.y - a.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const overlapX = (200 - Math.abs(dx)) / 2;
+                        const overlapY = (120 - Math.abs(dy)) / 2;
+                        a.x -= overlapX * (dx / dist) * 0.2;
+                        a.y -= overlapY * (dy / dist) * 0.2;
+                        b.x += overlapX * (dx / dist) * 0.2;
+                        b.y += overlapY * (dy / dist) * 0.2;
+                    }
+                }
+            }
+
+            // Maintain minimum movement
+            if (simulation.alpha() < 0.018) {
+                simulation.alpha(0.018);
+            }
         });
         
         function optimizeView(force = false) {
@@ -3263,6 +4626,98 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             const newTransform = d3.zoomIdentity.translate(container.clientWidth / 2 - scale * midX, container.clientHeight / 2 - scale * midY).scale(scale);
             svg.transition().duration(800).call(zoom.transform, newTransform) // Slightly longer for smoother transitions
                 .on('end', updateDynamicFontSizes); // Update font sizes after zoom transition
+        }
+
+        // Function to add individual list items to the container
+        function addListItemElement(container, item, index, node, textColor) {
+            const itemElement = container.append('xhtml:div')
+                .attr('data-list-index', index)
+                .style('display', 'flex')
+                .style('align-items', 'center')
+                .style('gap', '6px')
+                .style('padding', '2px 4px')
+                .style('border-radius', '4px')
+                .style('transition', 'background-color 0.2s ease')
+                .style('cursor', 'pointer')
+                .on('mouseenter', function() {
+                    d3.select(this).style('background-color', 'rgba(255,255,255,0.1)');
+                })
+                .on('mouseleave', function() {
+                    d3.select(this).style('background-color', 'transparent');
+                })
+                .on('click', function(event) {
+                    event.stopPropagation();
+                    // Handle item click (e.g., toggle checkbox for task lists)
+                    if (node.listType === 'task') {
+                        item.checked = !item.checked;
+                        updateGraph();
+                    }
+                });
+            
+            // Add checkbox for task lists
+            if (node.listType === 'task') {
+                itemElement.append('xhtml:input')
+                    .attr('type', 'checkbox')
+                    .attr('checked', item.checked)
+                    .style('margin', '0')
+                    .style('cursor', 'pointer')
+                    .on('change', function() {
+                        item.checked = this.checked;
+                        updateGraph();
+                    });
+            }
+            
+            // Add bullet or number for other list types
+            if (node.listType === 'bullet') {
+                itemElement.append('xhtml:span')
+                    .style('color', textColor)
+                    .style('font-size', '10pt')
+                    .style('font-weight', 'bold')
+                    .text('•');
+            } else if (node.listType === 'numbered') {
+                itemElement.append('xhtml:span')
+                    .style('color', textColor)
+                    .style('font-size', '10pt')
+                    .style('font-weight', 'bold')
+                    .style('min-width', '16px')
+                    .text(`${index + 1}.`);
+            }
+            
+            // Add the item text
+            const textElement = itemElement.append('xhtml:span')
+                .style('color', textColor)
+                .style('font-size', '10pt')
+                .style('line-height', '1.3')
+                .style('flex-grow', '1')
+                .style('word-wrap', 'break-word')
+                .style('text-decoration', item.checked ? 'line-through' : 'none')
+                .style('opacity', item.checked ? '0.7' : '1')
+                .text(item.text);
+            
+            // Add delete button
+            const deleteBtn = itemElement.append('xhtml:button')
+                .style('background', 'none')
+                .style('border', 'none')
+                .style('color', textColor)
+                .style('cursor', 'pointer')
+                .style('font-size', '8pt')
+                .style('opacity', '0.6')
+                .style('padding', '0')
+                .style('margin-left', '4px')
+                .style('transition', 'opacity 0.2s ease')
+                .text('×')
+                .on('mouseenter', function() {
+                    d3.select(this).style('opacity', '1');
+                })
+                .on('mouseleave', function() {
+                    d3.select(this).style('opacity', '0.6');
+                })
+                .on('click', function(event) {
+                    event.stopPropagation();
+                    // Remove the item from the list
+                    node.listItems.splice(index, 1);
+                    updateGraph();
+                });
         }
 
         // --- State Management ---
@@ -3320,21 +4775,26 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                     const prevState = {
                         isListNode: parent.isListNode,
                         listType: parent.listType,
-                        listItems: parent.listItems ? [...parent.listItems] : undefined
+                        listItems: parent.listItems ? [...parent.listItems] : []
                     };
-                    // Transform the parent into a list node
-                    parent.isListNode = true;
-                    parent.listType = listType;
+                                    // Transform the parent into a list node
+                parent.isListNode = true;
+                parent.listType = listType;
+                parent.listItems = [];
+                
+                // Add the first item if there's content
+                if (listContent) {
+                    parent.listItems.push({
+                        text: listContent,
+                        checked: listType === 'task' ? false : undefined,
+                        id: Date.now()
+                    });
+                }
+                
+                // Ensure the listItems array is properly initialized
+                if (!parent.listItems) {
                     parent.listItems = [];
-                    
-                    // Add the first item if there's content
-                    if (listContent) {
-                        parent.listItems.push({
-                            text: listContent,
-                            checked: listType === 'task' ? false : undefined,
-                            id: Date.now()
-                        });
-                    }
+                }
                     // Push transformation to historyStack
                     historyStack.push({type: 'transform-list', nodeId: parent.id, prevState});
                     // Enter list entry mode for this node
@@ -3516,23 +4976,17 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             if (newNode) {
                 historyStack.push(newNode);
                 
-                // Trigger Flow Assistant updates for significant changes
-                if (nodes.length > 1) { // Only after we have more than just the central node
-                    // Trigger contextual suggestions occasionally
-                    if (Math.random() < 0.4) { // 40% chance
-                        setTimeout(() => generateContextualSuggestions(), 4000); // Longer delay
-                    }
+                // Trigger Flow Assistant for new node events
+                if (nodes.length > 1) {
+                    detectSignificantMapChange('node_added', { 
+                        id: newNode.id, 
+                        parent: parent,
+                        name: newNode.name 
+                    });
                     
-                    // Auto-trigger Flow Assistant for new nodes (but only occasionally)
-                    if (!document.activeElement || document.activeElement === document.body) {
-                        // Only trigger occasionally to avoid rate limits
-                        if (Math.random() < 0.3) { // 30% chance
-                            setTimeout(() => {
-                                if (selectedNode && selectedNode.id === newNode.id) {
-                                    activateFlowAssistant(selectedNode);
-                                }
-                            }, 5000); // Increased delay to 5 seconds
-                        }
+                    // Trigger contextual suggestions occasionally
+                    if (Math.random() < 0.3) { // Reduced frequency
+                        setTimeout(() => generateContextualSuggestions(), 6000); // Longer delay
                     }
                 }
             }
@@ -3610,8 +5064,8 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                 summarizeBtn.style.display = 'inline-block';
                 elaborateBtn.style.display = 'inline-block';
                 
-                // Activate Flow Assistant when node is selected
-                activateFlowAssistant(selectedNode);
+                // Trigger intelligent Flow Assistant activation
+                detectSignificantMapChange('node_selected', selectedNode);
                 
                 // Update instructions based on context
                 if (isListEntryMode && activeListNode && activeListNode.id === d.id) {
@@ -3639,596 +5093,6 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                 openExpandedView(d);
             }
         }
-        
-        // --- Event Listeners ---
-        nodeInput.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            const text = nodeInput.value.trim();
-            if (!text) return;
-
-            let newNode;
-
-            // Handle list entry mode
-            if (isListEntryMode && activeListNode) {
-                if (event.shiftKey) {
-                    // Shift+Enter: Add a child node to the focused list node
-                    newNode = addNode(text, activeListNode);
-                    if (newNode) {
-                        nodeInput.value = '';
-                        // Exit list entry mode and select the new child node
-                        exitListEntryMode();
-                        handleNodeClick(null, newNode);
-                    }
-                } else {
-                    // Regular Enter: Add item to the active list node
-                activeListNode.listItems.push({
-                    text: text,
-                    checked: activeListNode.listType === 'task' ? false : undefined,
-                    id: Date.now() // Simple ID for tracking
-                });
-                nodeInput.value = '';
-                
-                // Trigger smooth resize animation by updating the graph
-                updateGraph();
-                
-                // Optional: Add a subtle flash effect to indicate the new item was added
-                setTimeout(() => {
-                    const listContainer = nodeGroup.selectAll(".node")
-                        .filter(d => d.id === activeListNode.id)
-                        .select('foreignObject')
-                        .select('.list-node-container');
-                    
-                    if (!listContainer.empty()) {
-                        listContainer.style('background-color', d3.color(activeListNode.color).brighter(0.3).toString())
-                            .transition()
-                            .duration(300)
-                            .style('background-color', d3.color(activeListNode.color).copy({opacity: 0.9}).toString());
-                    }
-                }, 50);
-                }
-                
-                return;
-            }
-
-            // Check if this is a list type entry
-            const listTypeMatch = text.match(/^(- |1\. |\[\] )(.*)/);
-            const isListType = listTypeMatch !== null;
-            
-            // Check if this is a YouTube URL - handle it like drag and drop
-            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/;
-            const youtubeMatch = text.match(youtubeRegex);
-            if (youtubeMatch && youtubeMatch[1] && selectedNode && selectedNode.depth > 0) {
-                // Transform the selected node into a YouTube media node
-                const embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
-                transformToMediaNode(selectedNode, 'youtube', embedUrl);
-                nodeInput.value = '';
-                return;
-            }
-            
-            // If trying to create a list and a node is selected, transform it
-            if (isListType && selectedNode && !selectedNode.isListNode && selectedNode.depth > 0) {
-                // Transform the selected node into a list node (but not the central node)
-                let listType = null;
-                let listContent = listTypeMatch[2];
-                
-                if (listTypeMatch[1] === '- ') listType = 'bullet';
-                else if (listTypeMatch[1] === '1. ') listType = 'numbered';
-                else if (listTypeMatch[1] === '[] ') listType = 'task';
-                
-                selectedNode.isListNode = true;
-                selectedNode.listType = listType;
-                selectedNode.listItems = [];
-                
-                // Add the first item if there's content
-                if (listContent) {
-                    selectedNode.listItems.push({
-                        text: listContent,
-                        checked: listType === 'task' ? false : undefined,
-                        id: Date.now()
-                    });
-                }
-                
-                // Enter list entry mode
-                isListEntryMode = true;
-                activeListNode = selectedNode;
-                nodeInput.value = '';
-                updateUserInstruction(`Adding items to list "${selectedNode.name}" • Enter to add item • Shift+Enter for child node`);
-                
-                updateGraph();
-                // Also apply a gentle restart here for consistency
-                simulation.alpha(0.05).restart();
-                return;
-            }
-
-            if (nodes.length === 0) {
-                // Case 1: Create the first node
-                newNode = addNode(text, null);
-                if (newNode) {
-                    handleNodeClick(null, newNode); // Select it and prime it for a child
-                    nodeInput.value = '';
-                }
-            } else if (selectedNode) {
-                // Case 2: A node is selected, decide what to create
-                if (isPrimedForChild) {
-                    // It was primed, so Enter creates a child.
-                    newNode = addNode(text, selectedNode);
-                } else {
-                    // Standard mode: Shift+Enter for child, Enter for sibling.
-                    if (event.shiftKey) {
-                        newNode = addNode(text, selectedNode); 
-                    } else {
-                        const parentLink = links.find(l => l.target.id === selectedNode.id);
-                        // If root is selected, create a child. Otherwise, create a sibling.
-                        const parent = parentLink ? parentLink.source : selectedNode;
-                        newNode = addNode(text, parent);
-                    }
-                }
-
-                if (newNode) {
-                    // Clear input first
-                    nodeInput.value = '';
-                    
-                    // Select the new node. This will correctly prime it for the moment.
-                    handleNodeClick(null, newNode);
-                    
-                    // For the next interaction, we always want to be in standard mode
-                    // after any key-based creation (unless we entered list mode).
-                    if (!isListEntryMode) {
-                        isPrimedForChild = false;
-                        updateUserInstruction(`Selected "${newNode.name}" • Enter for sibling • Shift+Enter for child`);
-                    }
-                }
-            }
-        });
-
-        d3.select("body").on("keydown", (event) => {
-            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
-                // Exit list entry mode on navigation
-                if (isListEntryMode) {
-                    exitListEntryMode();
-                }
-                
-                if (!selectedNode) {
-                    return;
-                }
-                event.preventDefault();
-
-                // --- Highly intelligent spatial navigation ---
-                function findClosestNodeInDirection(fromNode, direction) {
-                    // Direction vectors
-                    const dirVectors = {
-                        ArrowUp:    { x: 0, y: -1 },
-                        ArrowDown:  { x: 0, y: 1 },
-                        ArrowLeft:  { x: -1, y: 0 },
-                        ArrowRight: { x: 1, y: 0 }
-                    };
-                    const v = dirVectors[direction];
-                    if (!v) return null;
-
-                    let bestNode = null;
-                    let bestScore = Infinity;
-
-                    for (const node of nodes) {
-                        if (node.id === fromNode.id) continue;
-                        // Vector from fromNode to node
-                        const dx = node.x - fromNode.x;
-                        const dy = node.y - fromNode.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist === 0) continue;
-                        // Normalize
-                        const ndx = dx / dist;
-                        const ndy = dy / dist;
-                        // Dot product: how well does this node align with the intended direction?
-                        const dot = v.x * ndx + v.y * ndy;
-                        // Only consider nodes that are at least somewhat in the intended direction
-                        if (dot < 0.5) continue; // 0.5 = within 60 degrees of the direction
-                        // Penalize by angular deviation and distance
-                        const anglePenalty = 1 - dot; // 0 is perfect alignment, 1 is perpendicular
-                        const score = dist * (1 + anglePenalty * 2); // Weight angle more
-                        if (score < bestScore) {
-                            bestScore = score;
-                            bestNode = node;
-                        }
-                    }
-                    return bestNode;
-                        }
-
-                let newSelection = findClosestNodeInDirection(selectedNode, event.key);
-
-                if (newSelection) {
-                    handleNodeClick(null, newSelection);
-                }
-                return; // Navigation was handled, stop further processing
-            }
-
-            // --- Prevent other actions if input is focused ---
-            if(document.activeElement === nodeInput) return;
-
-            // --- Undo Logic (Ctrl+Z / Cmd+Z) ---
-            if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
-                // Don't interfere if user is actively typing
-                if (document.activeElement === nodeInput && nodeInput.value.trim() !== '') return;
-                
-                event.preventDefault();
-                const lastAction = historyStack.pop();
-                if (lastAction) {
-                    if (lastAction.type === 'transform-list') {
-                        // Undo list transformation
-                        const node = nodes.find(n => n.id === lastAction.nodeId);
-                        if (node) {
-                            node.isListNode = lastAction.prevState.isListNode;
-                            node.listType = lastAction.prevState.listType;
-                            node.listItems = lastAction.prevState.listItems;
-                            updateGraph();
-                            simulation.alpha(0.1).restart();
-                        }
-                    } else if (lastAction.type === 'transform-media') {
-                        // Undo media transformation (implement if you have media node transforms)
-                        const node = nodes.find(n => n.id === lastAction.nodeId);
-                        if (node) {
-                            node.isMediaNode = false;
-                            node.mediaType = null;
-                            node.mediaSrc = null;
-                            node.mediaMetadata = {};
-                            updateGraph();
-                            simulation.alpha(0.1).restart();
-                        }
-                    } else {
-                        // Default: remove node
-                        const nodeToRemove = nodes.find(n => n.id === lastAction.id);
-                        if(nodeToRemove) {
-                            // Find the previous node to focus on after undo
-                            const previousNode = historyStack.length > 0 ? historyStack[historyStack.length - 1] : null;
-                            const previousNodeInGraph = previousNode ? nodes.find(n => n.id === previousNode.id) : null;
-                            removeNode(nodeToRemove);
-                            if (previousNodeInGraph) {
-                                handleNodeClick(null, previousNodeInGraph);
-                            } else if (nodes.length > 0) {
-                                const centralNode = nodes.find(n => n.depth === 0);
-                                if (centralNode) {
-                                    handleNodeClick(null, centralNode);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // --- Delete Node Logic (Delete / Backspace) ---
-            if(selectedNode && (event.key === 'Delete' || event.key === 'Backspace')){
-                event.preventDefault();
-                removeNode(selectedNode);
-            }
-        });
-        
-        // --- LLM and Dragging ---
-        async function triggerProactiveSuggestions(newNode) {
-            // Wait a moment for the user to finish their thought
-            setTimeout(() => {
-                // Don't interrupt if user is actively working
-                if (document.activeElement === nodeInput && nodeInput.value.trim() !== '') return;
-                if (isDragging) return;
-                if (isListEntryMode) return;
-                
-                generateContextualSuggestions();
-            }, 3000); // Increased delay to be less intrusive
-        }
-        summarizeBtn.addEventListener('click', async () => {
-            if (!selectedNode) return;
-            
-            const context = buildMindMapContext();
-            const prompt = `Summarize this mind map: ${context}`;
-            
-            callDeepSeekAPIWithRateLimit(prompt, 260, 'high').then(response => {
-                if (response) {
-                    addAssistantMessage("Summary:", []);
-                    addAssistantMessage(response, []);
-                }
-            });
-        });
-        
-        elaborateBtn.addEventListener('click', async () => {
-            if (!selectedNode) return;
-            
-            const prompt = `Elaborate on "${selectedNode.name}" with key insights.`;
-            
-            callDeepSeekAPIWithRateLimit(prompt, 260, 'high').then(response => {
-                if (response) {
-                    addAssistantMessage(`About "${selectedNode.name}":`, []);
-                    addAssistantMessage(response, []);
-                    
-                    // Also generate some suggested child nodes
-                    const suggestionPrompt = `Suggest 3-4 child nodes for "${selectedNode.name}" (2-3 words each) as JSON array.`;
-                    callDeepSeekAPIWithRateLimit(suggestionPrompt, 150, 'medium').then(suggestions => {
-                        if (suggestions) {
-                            try {
-                                const parsed = JSON.parse(suggestions);
-                                if (Array.isArray(parsed)) {
-                                    addAssistantMessage("Explore:", parsed.slice(0, 4));
-                                }
-                            } catch (e) {
-                                // Silent fail
-                            }
-                        }
-                    });
-                }
-            });
-        });
-        function flashNode(nodeId) {
-            const nodeToFlash = node.filter(d => d.id === nodeId);
-            // ... existing code ...
-        }
-        function displayAiSuggestions(suggestions) { /* ... same as before ... */ }
-        function displayAiResponse(text, title) { /* ... same as before ... */ }
-        
-        function dragstarted(event, d) {
-            // Store starting position to distinguish clicks from drags
-            d.startX = event.x;
-            d.startY = event.y;
-            isDragging = false; // Reset flag
-            
-            // Store initial distances ONLY for directly connected links (not all links)
-            const directlyConnectedLinks = links.filter(l => 
-                (l.source.id === d.id) || (l.target.id === d.id)
-            );
-            directlyConnectedLinks.forEach(link => {
-                link.initialDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
-            });
-
-            // Track only immediate children for potential repositioning
-            d.draggedChildren = [];
-            const immediateChildren = links.filter(l => l.source.id === d.id).map(l => l.target);
-            immediateChildren.forEach(child => {
-                d.draggedChildren.push({
-                    node: child,
-                    originalX: child.x,
-                    originalY: child.y
-                });
-            });
-        }
-        function dragged(event, d) {
-            if (!isDragging) {
-                const dx = event.x - d.startX;
-                const dy = event.y - d.startY;
-                // Only start a "real" drag if the mouse moves more than 15px (increased threshold)
-                if (dx * dx + dy * dy > 225) { // 15px threshold
-                    isDragging = true;
-                    // Do NOT restart the entire simulation - just pin this node
-                    // This prevents affecting nodes from other branches
-                }
-            }
-            
-            if (isDragging) {
-                // Simply pin the dragged node position - no simulation forces
-                d.fx = event.x;
-                d.fy = event.y;
-                // Do not affect any other nodes during drag
-            }
-        }
-        function dragended(event, d) {
-            if (!isDragging) {
-                // --- THIS IS A CLICK ---
-                handleNodeClick(event, d);
-            } else {
-                // --- THIS WAS A DRAG ---
-                // Pin nodes after dragging to prevent unwanted floating
-                // Central node stays pinned, first generation nodes get pinned, others can float
-                if (d.depth === 0 || d.depth === 1) {
-                    // Keep first generation and central nodes pinned after drag
-                    d.fx = d.x;
-                    d.fy = d.y;
-                } else {
-                    // Allow other nodes to settle naturally
-                    d.fx = null;
-                    d.fy = null;
-                }
-                
-                // Update distances only for directly connected links
-                const directlyConnectedLinks = links.filter(l => 
-                    (l.source.id === d.id) || (l.target.id === d.id)
-                );
-                directlyConnectedLinks.forEach(link => {
-                    const postDragDistance = Math.hypot(link.target.x - link.source.x, link.target.y - link.source.y);
-                    const initialDistance = link.initialDistance || link.targetDistance;
-                    const distanceChange = postDragDistance - initialDistance;
-                    
-                    if (Math.abs(distanceChange) > 5) { // Only update if significant change
-                    if (distanceChange > 0) {
-                            // Stretched: learn 40% of the new distance (reduced from 60%)
-                            link.targetDistance = Math.max(40, link.targetDistance + (distanceChange * 0.4));
-                        } else {
-                            // Contracted: learn only 20% of the contracted distance (reduced from 30%)
-                        const contractionAmount = Math.abs(distanceChange);
-                            link.targetDistance = Math.max(40, link.targetDistance - (contractionAmount * 0.2));
-                        }
-                    }
-                    
-                    // Clean up the initial distance tracking
-                    delete link.initialDistance;
-                });
-                
-                // Gentle post-drag repositioning of immediate children only (45% reduced)
-                if (d.draggedChildren && d.draggedChildren.length > 0) {
-                    const dragDeltaX = d.x - (d.startX || d.x);
-                    const dragDeltaY = d.y - (d.startY || d.y);
-                    
-                    // Only reposition if there was significant movement
-                    if (Math.abs(dragDeltaX) > 20 || Math.abs(dragDeltaY) > 20) { // Balanced threshold (between 15 and 25)
-                        setTimeout(() => {
-                            gentlyRepositionChildren(d, d.draggedChildren);
-                        }, 155); // 45% reduction in delay increase: 100 + (200-100)*0.55 = 155ms
-                    }
-                    
-                    // Clean up children data
-                    d.draggedChildren = null;
-                }
-                
-                // Only give a very gentle nudge to the simulation - no major restart
-                simulation.alpha(Math.max(simulation.alpha(), 0.02));
-            }
-            // Clean up start positions
-            delete d.startX;
-            delete d.startY;
-        }
-
-        function gentlyRepositionChildren(parentNode, children) {
-            // Apply gentler forces - reduced by 45%
-            const repositionStrength = 0.044; // 45% reduction from 0.08 (0.08 * 0.55 = 0.044)
-            const maxRepositionDistance = 14; // 45% reduction from 25 (25 * 0.55 ≈ 14)
-            
-            children.forEach(childData => {
-                const child = childData.node;
-                
-                // Only apply minimal adjustment
-                const dx = parentNode.x - child.x;
-                const dy = parentNode.y - child.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // Only apply force if child is far from parent
-                if (distance > 100) { // Adjusted threshold (between 80 and 120)
-                    const targetDistance = 65; // Balanced target distance
-                    const pullStrength = (distance - targetDistance) / distance;
-                    const limitedPull = Math.min(pullStrength, 0.165); // 45% reduction from 0.3 (0.3 * 0.55 = 0.165)
-                    
-                    // Apply gentle pull towards parent
-                    child.vx += dx * limitedPull * repositionStrength;
-                    child.vy += dy * limitedPull * repositionStrength;
-                }
-            });
-            
-            // Give the simulation a gentler nudge - 45% reduction
-            simulation.alpha(Math.max(simulation.alpha(), 0.0275)); // 45% reduction from 0.05 (0.05 * 0.55 = 0.0275)
-        }
-        
-        // --- Initial State ---
-        window.addEventListener('resize', optimizeView);
-        
-        // Theme dropdown event listener
-        const themeDropdown = document.getElementById('theme-dropdown');
-        themeDropdown.value = currentTheme; // Set initial value
-        themeDropdown.addEventListener('change', (event) => {
-            switchTheme(event.target.value);
-        });
-        
-        applyTheme();
-        nodeInput.focus(); // Set focus on the input field on load
-        
-        // Initialize user instructions
-        updateUserInstruction('Click to create your central idea');
-        // Keep minimal simulation running for drag responsiveness
-        d3.timer(() => {
-            if (simulation.alpha() < 0.01) {
-                simulation.alpha(0.01); // Maintain minimal energy for drag detection
-            }
-        });
-        
-        // Initialize dynamic font sizes
-        setTimeout(() => updateDynamicFontSizes(), 100);
-
-        // Periodic Flow Assistant refresh for long sessions (much less frequent)
-        let lastFlowAssistantUpdate = 0;
-        setInterval(() => {
-            // Only refresh if user has been idle for a very long time
-            if (selectedNode && 
-                !isDragging && 
-                !isListEntryMode && 
-                document.activeElement !== nodeInput &&
-                Date.now() - lastFlowAssistantUpdate > 900000) { // 15 minutes instead of 5
-                
-                activateFlowAssistant(selectedNode);
-                lastFlowAssistantUpdate = Date.now();
-            }
-        }, 300000); // Check every 5 minutes instead of 1 minute
-
-        // Track significant map changes for Flow Assistant triggers
-        let lastMapStructureHash = '';
-        function getMapStructureHash() {
-            const structure = nodes.map(n => `${n.id}:${n.name}:${n.depth}`).sort().join('|');
-            return structure;
-        }
-
-        // Enhanced node change detection
-        const originalUpdateGraph = updateGraph;
-        updateGraph = function() {
-            const newHash = getMapStructureHash();
-            const hasSignificantChange = newHash !== lastMapStructureHash && nodes.length > 1;
-            
-            // Call original function
-            originalUpdateGraph.call(this);
-            
-            // Trigger Flow Assistant on significant changes (much less frequently)
-            if (hasSignificantChange && selectedNode && Date.now() - lastFlowAssistantUpdate > 60000) { // 1 minute instead of 10 seconds
-                // Only trigger 20% of the time to reduce API calls
-                if (Math.random() < 0.2) {
-                    setTimeout(() => {
-                        if (selectedNode && !isDragging && !isListEntryMode) {
-                            activateFlowAssistant(selectedNode);
-                            lastFlowAssistantUpdate = Date.now();
-                        }
-                    }, 3000); // Longer delay to let user finish their work
-                }
-            }
-            
-            lastMapStructureHash = newHash;
-        };
-
-        window.addEventListener('dragenter', (event) => {
-            event.preventDefault();
-            // Show a border on the container to indicate it's a drop zone
-            container.style.border = '2px dashed var(--ui-focus-dark)';
-        });
-
-        window.addEventListener('dragleave', (event) => {
-            event.preventDefault();
-            // Check if the cursor is leaving the window. relatedTarget will be null.
-            if (event.relatedTarget === null) {
-                container.style.border = 'none';
-                if (dropTargetNode) {
-                    nodeGroup.selectAll('.node').filter(n => n.id === dropTargetNode.id).classed('drop-target', false);
-                    dropTargetNode = null;
-                }
-            }
-        });
-
-        window.addEventListener('dragover', (event) => {
-            event.preventDefault(); // This is crucial to allow the 'drop' event.
-
-            // Convert screen coordinates to SVG space coordinates, accounting for zoom/pan
-            const transform = d3.zoomTransform(svg.node());
-            const [mx, my] = d3.pointer(event, masterGroup.node());
-
-            let closestNode = null;
-            let minDistance = Infinity;
-
-            // Find the closest node to the cursor
-            nodes.forEach(node => {
-                // Cannot drop on the central node, or nodes that are already special types.
-                if (node.depth === 0 || node.isListNode || node.isExpanded || node.isMediaNode) return;
-                
-                const dx = node.x - mx;
-                const dy = node.y - my;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Check if cursor is within the node's radius + a small buffer
-                if (distance < minDistance && distance < node.radius + 30) {
-                    minDistance = distance;
-                    closestNode = node;
-                }
-            });
-
-            if (closestNode !== dropTargetNode) {
-                // Remove highlight from the old target
-                if (dropTargetNode) {
-                    nodeGroup.selectAll('.node').filter(n => n.id === dropTargetNode.id).classed('drop-target', false);
-                }
-                // Add highlight to the new target
-                if (closestNode) {
-                    nodeGroup.selectAll('.node').filter(n => n.id === closestNode.id).classed('drop-target', true);
-                }
-                dropTargetNode = closestNode;
-            }
-        });
 
         window.addEventListener('drop', (event) => {
             event.preventDefault();
@@ -4251,7 +5115,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                             transformToMediaNode(dropTargetNode, 'image', e.target.result);
                         };
                         reader.readAsDataURL(file);
-                    } else {
+            } else {
                         // For other file types, just use the file name
                          transformToMediaNode(dropTargetNode, 'file', file.name);
                     }
@@ -4325,27 +5189,12 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                 .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(targetScale));
         }
 
-        function closeExpandedView(d, callback) {
-            if (!d || !d.isExpanded) {
-                if(callback) callback();
-                return;
-            }
-            activeExpandedNode = null;
+        function closeExpandedView(d) {
             d.isExpanded = false;
-            d.wasExpanded = true;
-            d.fx = null;
-            d.fy = null;
-
-            // The actual animation is handled in updateGraph now
+            d.fx = d.x;
+            d.fy = d.y;
             updateGraph();
-            
-            // Zoom out camera during the transition
-            optimizeView();
-            
-            // Wait for the animation to complete before calling callback
-            if (callback) {
-                setTimeout(callback, 600);
-            }
+            simulation.alpha(0.05).restart();
         }
 
         function handleBackgroundClick(event) {
@@ -4533,8 +5382,8 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                                 const mediaInfo = intelligentLinkDetection(text);
                                 if (mediaInfo) {
                                     createMediaNode(selectedNode, mediaInfo.type, mediaInfo.src, mediaInfo.metadata);
-                                }
-                            } catch (e) {
+            }
+          } catch (e) {
                                 // Not a URL, ignore
                             }
                         }
@@ -4577,7 +5426,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                 let videoId = null;
                 if (metadata && metadata.videoId) {
                     videoId = metadata.videoId;
-                } else {
+          } else {
                     // Try to extract from src
                     const match = src.match(/[?&]v=([\w-]{11})/) || src.match(/youtu\.be\/([\w-]{11})/);
                     if (match) videoId = match[1];
@@ -4643,6 +5492,7 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
                     src: `https://www.youtube.com/embed/${youtubeMatch[1]}`,
                     metadata: {
                         videoId: youtubeMatch[1],
+                        oembedUrl: `https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=${youtubeMatch[1]}&format=json`,
                         thumbnail: `https://img.youtube.com/vi/${youtubeMatch[1]}/maxresdefault.jpg`,
                         originalUrl: url
                     }
@@ -4756,143 +5606,250 @@ Suggest 3-5 concise nodes (2-3 words each) as JSON array.`;
             };
         }
 
-        function transformToMediaNode(node, type, src, metadata = {}) {
-            node.isMediaNode = true;
-            node.mediaType = type;
-            node.mediaSrc = src;
-            node.mediaMetadata = metadata;
-            
-            // If it was another special type, reset it
-            node.isListNode = false;
-            node.isExpanded = false;
-
-            updateGraph();
-            simulation.alpha(0.05).restart();
-        }
-
-        // Helper function to add a single list item element
-        function addListItemElement(listContainer, item, index, nodeData, textColor) {
-            const itemDiv = listContainer.append('xhtml:div')
-                .attr('data-list-index', index)
-                .style('display', 'flex')
-                .style('align-items', 'flex-start')
-                .style('font-size', '10pt')
-                .style('line-height', '1.1')
-                .style('min-height', '14px')
-                .style('opacity', 0); // Start invisible for smooth fade-in
-            
-            if (nodeData.listType === 'bullet') {
-                itemDiv.append('xhtml:span')
-                    .style('margin-right', '6px')
-                    .style('margin-top', '1px')
-                    .style('color', textColor)
-                    .style('font-weight', 'bold')
-                    .style('flex-shrink', '0')
-                    .style('font-size', '10pt')
-                    .text('•');
-            } else if (nodeData.listType === 'numbered') {
-                itemDiv.append('xhtml:span')
-                    .style('margin-right', '6px')
-                    .style('margin-top', '1px')
-                    .style('color', textColor)
-                    .style('font-weight', '500')
-                    .style('flex-shrink', '0')
-                    .style('min-width', '14px')
-                    .style('font-size', '10pt')
-                    .text((index + 1) + '.');
-            } else if (nodeData.listType === 'task') {
-                itemDiv.append('xhtml:input')
-                    .attr('type', 'checkbox')
-                    .style('margin-right', '6px')
-                    .style('margin-top', '2px')
-                    .style('flex-shrink', '0')
-                    .style('width', '12px')
-                    .style('height', '12px')
-                    .property('checked', item.checked)
-                    .on('change', function() { item.checked = this.checked; })
-                    .on('click', event => event.stopPropagation());
-            }
-            
-            itemDiv.append('xhtml:span')
-                .attr('class', 'list-item-text')
-                .style('flex-grow', '1')
-                .style('color', textColor)
-                .style('word-wrap', 'break-word')
-                .attr('contenteditable', true)
-                .text(item.text)
-                .on('mousedown', event => event.stopPropagation())
-                .on('keydown', function(event) { 
-                    if (event.key === 'Enter') { 
-                        event.preventDefault(); 
-                        
-                        // Check if cursor is at the end of the text
-                        const selection = window.getSelection();
-                        const range = selection.getRangeAt(0);
-                        const textContent = this.textContent;
-                        const cursorPosition = range.startOffset;
-                        
-                        if (cursorPosition === textContent.length) {
-                            // Cursor is at the end - create a new bullet point
-                            nodeData.listItems.push({
-                                text: '',
-                                checked: nodeData.listType === 'task' ? false : undefined,
-                                id: Date.now()
-                            });
-                            
-                            // Update the graph to show the new item
-                            updateGraph();
-                            
-                            // Focus on the new item after a brief delay
-                            setTimeout(() => {
-                                const listNode = nodeGroup.selectAll('.node').filter(n => n.id === nodeData.id);
-                                const newItemText = listNode.select('.list-items-container')
-                                    .selectAll('.list-item-text')
-                                    .nodes()[nodeData.listItems.length - 1];
-                                
-                                if (newItemText) {
-                                    newItemText.focus();
-                                    // Place cursor at the beginning of the new item
-                                    const range = document.createRange();
-                                    const sel = window.getSelection();
-                                    range.setStart(newItemText, 0);
-                                    range.collapse(true);
-                                    sel.removeAllRanges();
-                                    sel.addRange(range);
-                                }
-                            }, 50);
-                        } else {
-                            // Cursor is not at the end - just blur (exit editing)
-                            this.blur(); 
+        // Refactored forceLinkRepel to use d3.quadtree for node-to-link repulsion
+        function forceLinkRepel() {
+            const repulsionStrength = 1.2;
+            const repulsionDistance = 45;
+            const textRepulsionStrength = 0.8;
+            const linkRepulsionStrength = 0.6;
+            return function(alpha) {
+                // Build quadtree for node positions
+                const nodeQuadtree = d3.quadtree()
+                    .x(d => d.x)
+                    .y(d => d.y)
+                    .addAll(nodes);
+                // Node-to-link repulsion (quadtree for nodes)
+                links.forEach(link => {
+                    const x1 = link.source.x;
+                    const y1 = link.source.y;
+                    const x2 = link.target.x;
+                    const y2 = link.target.y;
+                    nodeQuadtree.visit((quad, x0, y0, x1q, y1q) => {
+                        if (!quad.data) return false;
+                        const node = quad.data;
+                        if (node.depth === 1) return false;
+                        if (link.source === node || link.target === node) return false;
+                        const x0n = node.x;
+                        const y0n = node.y;
+                        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+                        if (l2 === 0) return false;
+                        let t = ((x0n - x1) * (x2 - x1) + (y0n - y1) * (y2 - y1)) / l2;
+                        t = Math.max(0, Math.min(1, t));
+                        const closestX = x1 + t * (x2 - x1);
+                        const closestY = y1 + t * (y2 - y1);
+                        const dx = x0n - closestX;
+                        const dy = y0n - closestY;
+                        const d = Math.sqrt(dx * dx + dy * dy);
+                        if (d < repulsionDistance && d > 0) {
+                            const force = repulsionStrength * (1 - d / repulsionDistance) * alpha;
+                            const forceX = (dx / d) * force;
+                            const forceY = (dy / d) * force;
+                            node.vx += forceX;
+                            node.vy += forceY;
+                            const tInv = 1 - t;
+                            link.source.vx -= forceX * tInv * 0.3;
+                            link.source.vy -= forceY * tInv * 0.3;
+                            link.target.vx -= forceX * t * 0.3;
+                            link.target.vy -= forceY * t * 0.3;
                         }
-                    } 
-                    event.stopPropagation(); 
-                })
-                .on('blur', function() { 
-                    item.text = this.innerText; 
-                })
-                .on('click', function(event) { 
-                    event.stopPropagation();
-                    // Enter list adding mode when clicking on list item text
-                    isListEntryMode = true;
-                    activeListNode = nodeData;
-                    selectedNode = nodeData;
-                    updateUserInstruction(`Adding items to list "${nodeData.name}" • Enter to add item • Shift+Enter for child node`);
-                    nodeInput.focus();
-                    
-                    // Update UI to show the node as selected
-                    nodeGroup.selectAll('.node').classed('selected', false);
-                    nodeGroup.selectAll('.node').filter(n => n.id === nodeData.id).classed('selected', true);
-                    
-                    // Show action buttons
-                    summarizeBtn.style.display = 'inline-block';
-                    elaborateBtn.style.display = 'inline-block';
+                        return x0 > node.x + repulsionDistance || x1q < node.x - repulsionDistance || y0 > node.y + repulsionDistance || y1q < node.y - repulsionDistance;
+                    });
                 });
-            
-            // Smooth fade-in for new items
-            itemDiv.transition()
-                .duration(300)
-                .style('opacity', 1);
+                // Link-to-link repulsion (keep original logic for now)
+                for (let i = 0; i < links.length; i++) {
+                    for (let j = i + 1; j < links.length; j++) {
+                        const link1 = links[i];
+                        const link2 = links[j];
+                        if (link1.source === link2.source || link1.source === link2.target || link1.target === link2.source || link1.target === link2.target) continue;
+                        const mid1X = (link1.source.x + link1.target.x) / 2;
+                        const mid1Y = (link1.source.y + link1.target.y) / 2;
+                        const mid2X = (link2.source.x + link2.target.x) / 2;
+                        const mid2Y = (link2.source.y + link2.target.y) / 2;
+                        const dx = mid1X - mid2X;
+                        const dy = mid1Y - mid2Y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance < 30 && distance > 0) {
+                            const force = linkRepulsionStrength * (1 - distance / 30) * alpha;
+                            const forceX = (dx / distance) * force;
+                            const forceY = (dy / distance) * force;
+                            link1.source.vx += forceX * 0.25;
+                            link1.source.vy += forceY * 0.25;
+                            link1.target.vx += forceX * 0.25;
+                            link1.target.vy += forceY * 0.25;
+                            link2.source.vx -= forceX * 0.25;
+                            link2.source.vy -= forceY * 0.25;
+                            link2.target.vx -= forceX * 0.25;
+                            link2.target.vy -= forceY * 0.25;
+                        }
+                    }
+                }
+                // Text-to-link repulsion (keep original logic for now)
+                nodes.forEach(node => {
+                    if (node.isExpanded || node.isListNode || node.isMediaNode) return;
+                    if (node.depth === 1) return;
+                    const textX = node.x;
+                    let textY, textRadius;
+                    if (node.depth === 0) {
+                        textY = node.y + 60;
+                        textRadius = 45;
+                    } else if (node.depth === 1) {
+                        textY = node.y;
+                        textRadius = 60;
+                    } else {
+                        textY = node.y + node.radius + 12;
+                        textRadius = 25;
+                    }
+                    links.forEach(link => {
+                        if (link.source === node || link.target === node) return;
+                        const x1 = link.source.x;
+                        const y1 = link.source.y;
+                        const x2 = link.target.x;
+                        const y2 = link.target.y;
+                        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+                        if (l2 === 0) return;
+                        let t = ((textX - x1) * (x2 - x1) + (textY - y1) * (y2 - y1)) / l2;
+                        t = Math.max(0, Math.min(1, t));
+                        const closestX = x1 + t * (x2 - x1);
+                        const closestY = y1 + t * (y2 - y1);
+                        const dx = textX - closestX;
+                        const dy = textY - closestY;
+                        const d = Math.sqrt(dx * dx + dy * dy);
+                        if (d < textRadius && d > 0) {
+                            const force = textRepulsionStrength * (1 - d / textRadius) * alpha;
+                            const forceX = (dx / d) * force;
+                            const forceY = (dy / d) * force;
+                            node.vx += forceX;
+                            node.vy += forceY;
+                            const tInv = 1 - t;
+                            link.source.vx -= forceX * tInv * 0.1;
+                            link.source.vy -= forceY * tInv * 0.1;
+                            link.target.vx -= forceX * t * 0.1;
+                            link.target.vy -= forceY * t * 0.1;
+                        }
+                    });
+                });
+            };
         }
+
+        // Force to keep nodes within viewport bounds
+        function forceViewportBounds() {
+            let nodes;
+            let width;
+            let height;
+            let strength = 0.1;
+
+            function force() {
+                if (!nodes) return;
+                
+                for (let i = 0; i < nodes.length; i++) {
+                    const node = nodes[i];
+                    if (node.fx !== undefined || node.fy !== undefined) continue;
+                    
+                    const radius = node.radius || 20;
+                    const margin = 50;
+                    
+                    // X bounds
+                    if (node.x < radius + margin) {
+                        node.vx += (radius + margin - node.x) * strength;
+                    } else if (node.x > width - radius - margin) {
+                        node.vx += (width - radius - margin - node.x) * strength;
+                    }
+                    
+                    // Y bounds
+                    if (node.y < radius + margin) {
+                        node.vy += (radius + margin - node.y) * strength;
+                    } else if (node.y > height - radius - margin) {
+                        node.vy += (height - radius - margin - node.y) * strength;
+                    }
+                }
+            }
+
+            force.initialize = function(_) { 
+                nodes = _; 
+                width = container.clientWidth;
+                height = container.clientHeight;
+            };
+            
+            force.width = function(_) {
+                return arguments.length ? (width = _, force) : width;
+            };
+            
+            force.height = function(_) {
+                return arguments.length ? (height = _, force) : height;
+            };
+            
+            force.strength = function(_) {
+                return arguments.length ? (strength = _, force) : strength;
+            };
+
+            return force;
+        }
+
+        // LLM endpoint check on startup
+        const LLM_ENDPOINT = 'http://localhost:1234/v1';
+        function checkLlmEndpoint() {
+            fetch(LLM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true }) })
+                .then(res => {
+                    if (!res.ok) throw new Error('LLM endpoint not reachable');
+                })
+                .catch(() => {
+                    // Show prominent message in UI
+                    let llmWarning = document.getElementById('llm-warning');
+                    if (!llmWarning) {
+                        llmWarning = document.createElement('div');
+                        llmWarning.id = 'llm-warning';
+                        llmWarning.style.position = 'fixed';
+                        llmWarning.style.top = '0';
+                        llmWarning.style.left = '0';
+                        llmWarning.style.width = '100vw';
+                        llmWarning.style.background = '#b71c1c';
+                        llmWarning.style.color = 'white';
+                        llmWarning.style.fontWeight = 'bold';
+                        llmWarning.style.fontSize = '1.1rem';
+                        llmWarning.style.padding = '1rem 2rem';
+                        llmWarning.style.zIndex = '2000';
+                        llmWarning.style.textAlign = 'center';
+                        llmWarning.innerHTML = `
+                            <span>⚠️ Unable to connect to Local AI (LLM) at <code>${LLM_ENDPOINT}</code>.<br>
+                            Please ensure LM Studio or your local LLM server is running.<br>
+                            <a href='https://lmstudio.ai/' target='_blank' style='color:#fff;text-decoration:underline;'>Get LM Studio</a> or check your endpoint settings.</span>
+                        `;
+                        document.body.appendChild(llmWarning);
+                    }
+                });
+        }
+        window.addEventListener('DOMContentLoaded', checkLlmEndpoint);
+
+        // Import JSON functionality
+        window.addEventListener('DOMContentLoaded', () => {
+            const importJsonTopBarBtn = document.getElementById('import-json');
+            const importJsonFileInput = document.getElementById('import-json-file');
+            if (importJsonTopBarBtn && importJsonFileInput) {
+                importJsonTopBarBtn.addEventListener('click', () => importJsonFileInput.click());
+                importJsonFileInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (Array.isArray(data.nodes) && data.nodes.length > 0 && Array.isArray(data.links)) {
+                                nodes = data.nodes;
+                                links = data.links;
+                                // Redraw or re-initialize the mindmap as needed
+                                location.reload(); // Or call your redraw/init function
+                            } else {
+                                alert('Invalid or empty mindmap JSON. The current mindmap will not be changed.');
+                            }
+                        } catch (err) {
+                            alert('Failed to import JSON: ' + err.message + '\nThe current mindmap will not be changed.');
+                        }
+                    };
+                    reader.readAsText(file);
+                    event.target.value = '';
+                });
+            }
+        });
     </script>
 </body>
 </html>
