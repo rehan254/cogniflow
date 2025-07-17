@@ -1,11 +1,11 @@
-**CogniFlow v8: AI-Powered Idea Synthesizer - Complete Implementation Spec**
+**CogniFlow v8.3: AI-Powered Idea Synthesizer - Complete Implementation Spec**
 
 **I. Core Vision**
-CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless extension of the user's thought process. It leverages advanced AI (Gemini 1.5 Flash) to not only capture ideas but to actively participate in their synthesis, offering real-time insights, elaborations, definitions, and structural suggestions. The user experience feels fluid, intuitive, and visually engaging, transforming static mind maps into a living, breathing ecosystem of ideas with comprehensive AI assistance.
+CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless extension of the user's thought process. It leverages advanced local AI systems (LM Studio + Gemma models) to not only capture ideas but to actively participate in their synthesis, offering real-time insights, elaborations, definitions, and structural suggestions. The user experience feels fluid, intuitive, and visually engaging, transforming static mind maps into a living, breathing ecosystem of ideas with comprehensive AI assistance without external API dependencies.
 
 **II. Fully Implemented Features & Functionality**
 
-*   **Advanced AI Integration:**
+*   **Advanced Local AI Integration:**
     *   **🌊 Flow Assistant:** Comprehensive AI analysis system providing structured insights including:
         - Term definitions and clarifications
         - Keyword refinement suggestions (clickable to apply)
@@ -13,9 +13,41 @@ CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless
         - Contextual overviews and background information
         - Connection discovery between disparate map areas
         - Gap analysis and structural improvement suggestions
-    *   **Rate-Limited API System:** Smart queue with priority handling (High/Medium/Low) to prevent API overuse
+    *   **Local AI System:** LM Studio with Gemma 7B Instruct model for fast, unlimited processing
+    *   **Intelligent Model Selection:** Automatic fallback based on usage and priority
+    *   **Rate-Limited Local API System:** Smart queue with priority handling (High/Medium/Low) to prevent overuse
     *   **Auto-triggered Intelligence:** Context-aware AI activation with smart throttling
     *   **Priority Queue:** User actions get immediate response, background tasks wait respectfully
+    *   **Persistent Settings:** User-configurable model preferences saved to localStorage
+
+*   **Enhanced Physics & Collision System:**
+    *   **Advanced Collision Prevention:** Bounding box detection for all node types (expanded, list, media)
+    *   **Post-Tick Overlap Resolver:** Ensures no node overlaps after each simulation tick
+    *   **Dynamic Link Distances:** Large/expanded nodes automatically space out for balanced layouts
+    *   **Enhanced Force Simulation:** Tuned strengths and decay for more even, stable layouts
+    *   **Visual Consistency:** All node types respected in force calculations with proper sizing
+
+*   **Modern iOS-like User Interface:**
+    *   **Top Bar Design:** Model status display, settings integration, save/load buttons
+    *   **Persistent AI Settings:** Live configuration of endpoint/model/temperature/rate limit
+    *   **Usage Indicators:** Real-time API usage tracking per model
+    *   **Background AI Toggle:** Control automatic AI updates
+    *   **Compact Controls:** Visually consistent and space-efficient design
+
+*   **Comprehensive Data Persistence:**
+    *   **JSON Export/Import:** Complete mind map serialization with all node types and properties
+    *   **Local Storage:** Persistent settings, preferences, and model configurations
+    *   **Auto-Save:** Automatic state preservation
+    *   **Keyboard Shortcuts:** Ctrl+S for save, Ctrl+O for load
+    *   **File Drag & Drop:** Direct JSON file loading
+    *   **Data Integrity:** Validation, error recovery, and backup systems
+
+*   **Enhanced Flow Assistant Chat Stream:**
+    *   **Real-time Conversation:** Replaces static insight cards with dynamic chat interface
+    *   **Typing Animations:** Character-by-character display for natural interaction
+    *   **Message Threading:** User/assistant distinction with contextual responses
+    *   **Highlight-to-Add:** Text selection with quick node creation
+    *   **Contextual Actions:** Buttons for immediate node creation from AI responses
 
 *   **Comprehensive Node System:**
     *   **Standard Nodes:** Circular nodes with generation-based sizing (22px to 8px radius)
@@ -52,8 +84,9 @@ CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless
         2. **Standard Mode:** Enter creates sibling, Shift+Enter creates child, mode persists
     *   **Advanced Physics Engine:** 
         - Custom force functions for link repulsion and text separation
-        - Viewport boundary constraints
-        - Collision detection with generation-specific radii
+        - Viewport boundary constraints with intelligent centering
+        - Bounding box collision detection for all node types
+        - Post-tick overlap resolver for perfect collision prevention
         - 4-second position stabilization for non-first-generation nodes
     *   **Intelligent Dragging:** 45% reduced impact on children with smart repositioning
     *   **Spatial Navigation:** Arrow key movement with intelligent direction finding
@@ -64,51 +97,72 @@ CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless
     *   **List Creation:** Automatic detection and transformation via typed prefixes
     *   **Keyboard Shortcuts:** Full navigation, creation, deletion, and undo support
     *   **Clipboard Integration:** Ctrl+V for pasting images and URLs
+    *   **Data Persistence:** Save/load functionality with keyboard shortcuts
 
 *   **Professional UI/UX:**
-    *   **Flow Assistant Panel:** Expandable insight cards with color-coded categories:
+    *   **Flow Assistant Chat Stream:** Real-time conversation with typing animations:
         - 📚 Definitions (blue), ✏️ Refinements (orange), 🤔 Questions (light blue)
         - 🔍 Overviews (bright blue), 🔗 Connections (green), 💡 Gaps (yellow), 🏗️ Structure (purple)
     *   **Smart Loading States:** Queue-aware progress indicators
     *   **Contextual Instructions:** Dynamic guidance text based on current mode and selection
     *   **Graceful Error Handling:** Fallbacks and retry mechanisms for API failures
+    *   **Modern Design Language:** iOS-inspired interface with professional polish
 
 *   **Performance & Optimization:**
     *   **Viewport Culling:** Efficient rendering for large maps
     *   **Progressive Detail Reduction:** Smart font scaling and opacity management
     *   **Optimized Force Calculations:** Custom algorithms for smooth performance
     *   **Memory Management:** Efficient node and link handling
+    *   **Local AI Efficiency:** Local models for immediate responses without external dependencies
 
 **III. Technical Architecture**
 
 *   **Core Technologies:**
     *   D3.js v7 for visualization and force simulation
-    *   Gemini 1.5 Flash API for AI intelligence
+    *   Local AI system: LM Studio with Gemma 7B Instruct model
     *   Vanilla JavaScript ES6+ for application logic
     *   CSS3 with custom properties for theming
     *   SVG/Canvas hybrid rendering
+    *   Local storage for persistent settings and data
 
-*   **AI System Architecture:**
-    *   Rate-limited API queue with exponential backoff
+*   **Local AI System Architecture:**
+    *   LM Studio integration with intelligent fallback
+    *   Rate-limited local API queue with exponential backoff
     *   Structured JSON response parsing for comprehensive insights
     *   Context-aware prompt generation with full map analysis
-    *   Priority-based request handling
-    *   Smart caching and throttling
+    *   Priority-based request handling with model selection
+    *   Smart caching and throttling per model
+    *   Persistent user preferences and settings
+
+*   **Advanced Physics Engine:**
+    *   Bounding box collision detection for all node types
+    *   Post-tick overlap resolver for perfect collision prevention
+    *   Dynamic link distances that adapt to node sizes
+    *   Enhanced force functions with custom algorithms
+    *   Generation-specific collision handling
+    *   Intelligent camera control with user interaction awareness
 
 *   **Data Structures:**
     *   Hierarchical node system with depth tracking
     *   Dynasty-based color inheritance
     *   Link system with dynamic distance adjustment
     *   History stack for undo/redo operations
+    *   Complete JSON serialization for all data types
+    *   Model configuration and usage tracking
 
 **IV. Current Capabilities**
 
-*   **✅ Complete AI Integration:** Full Flow Assistant with structured insights
+*   **✅ Complete Local AI Integration:** Full Flow Assistant with LM Studio and Gemma models
+*   **✅ Advanced Collision Prevention:** Bounding box detection with post-tick overlap resolver
+*   **✅ Dynamic Link Distances:** Automatic spacing for balanced, pleasant layouts
+*   **✅ Modern iOS-like UI:** Persistent AI settings and model selection
+*   **✅ Comprehensive Data Persistence:** JSON export/import with keyboard shortcuts
+*   **✅ Enhanced Flow Assistant:** Real-time chat stream with typing animations
 *   **✅ Multi-Modal Nodes:** Standard, Expanded, List, and Media nodes fully functional
 *   **✅ Advanced Theming:** 8 professional themes with automatic adaptation
 *   **✅ Smart Text Handling:** No truncation, intelligent wrapping, dynamic sizing
 *   **✅ Drag & Drop:** Comprehensive media support with type detection
-*   **✅ Rate Limiting:** Professional API management preventing overuse
+*   **✅ Rate Limiting:** Professional local API management preventing overuse
 *   **✅ Interactive Physics:** Advanced force simulation with custom algorithms
 *   **✅ Full Keyboard Support:** Complete navigation and creation workflows
 *   **✅ Error Recovery:** Graceful handling of API failures and edge cases
@@ -121,27 +175,36 @@ CogniFlow is an intelligent, dynamic mind-mapping tool designed to be a seamless
 *   **AI Intelligence:** Comprehensive analysis and suggestion system
 *   **Visual Polish:** Professional animations and transitions
 *   **Data Integrity:** Robust state management and error handling
+*   **Local AI Efficiency:** Local models for speed without external dependencies
+*   **Persistent Settings:** User preferences saved across sessions
 
 **VI. Future Enhancement Opportunities**
 
 *   **Cloud Persistence:** Save/load functionality with user accounts
-*   **Export Systems:** PDF, PNG, JSON, Markdown export options
+*   **Export Systems:** PDF, PNG, Markdown export options
 *   **Collaboration:** Real-time multi-user editing
 *   **Mobile Optimization:** Touch-first interface for tablets and phones
 *   **Custom AI Models:** Fine-tuned models for specific domains
 *   **Advanced Analytics:** Usage patterns and insight effectiveness tracking
+*   **Plugin System:** Extensible architecture for custom features
+*   **Advanced Visualization:** 3D mind maps and alternative layouts
 
 ---
 
-**Status:** Production Ready - CogniFlow v8 represents a fully-featured, AI-powered mind mapping application with professional-grade functionality, comprehensive user experience, and advanced AI integration capabilities.
+**Status:** Production Ready - CogniFlow v8.3 represents a fully-featured, AI-powered mind mapping application with professional-grade functionality, comprehensive user experience, and advanced local AI integration capabilities.
 
-2025 UPDATE SUMMARY
+**2025 UPDATE SUMMARY**
 
-- Node overlap is now fully prevented: expanded, list, and media nodes use bounding box collision, not just circle radius.
-- Link distances are dynamic: large/expanded nodes automatically space out for a balanced, pleasant layout.
-- A post-tick overlap resolver ensures no node overlaps after each simulation tick.
-- Force strengths and decay have been tuned for more even, stable layouts.
-- All node types (standard, expanded, list, media) are visually consistent and their sizes are respected in force calculations.
-- The UI now features a modern, iOS-like top bar with an LLM settings modal for endpoint/model/temperature/rate limit, and persistent settings.
-- LLM settings can be changed live from the UI and are saved to localStorage.
-- Theming and controls are visually consistent and compact. 
+- **Local AI Integration:** Complete integration with LM Studio and Gemma 7B Instruct model for unlimited, fast AI processing without external API dependencies.
+- **Enhanced Collision Prevention:** Node overlap is now fully prevented using bounding box collision detection for all node types (expanded, list, media), not just circle radius.
+- **Dynamic Link Distances:** Large/expanded nodes automatically space out for a balanced, pleasant layout with proper visual hierarchy.
+- **Post-Tick Overlap Resolver:** A sophisticated algorithm ensures no node overlaps after each simulation tick for perfect collision prevention.
+- **Improved Force Simulation:** Force strengths and decay have been tuned for more even, stable layouts with enhanced visual consistency.
+- **Visual Consistency:** All node types (standard, expanded, list, media) are visually consistent and their sizes are respected in force calculations.
+- **Modern iOS-like UI:** The interface now features a modern, iOS-like top bar with persistent AI settings for endpoint/model/temperature/rate limit configuration.
+- **Persistent Settings:** AI settings can be changed live from the UI and are saved to localStorage for consistent user experience.
+- **Multi-Model AI System:** Local Gemma models provide fast, unlimited processing while maintaining privacy and eliminating external dependencies.
+- **Comprehensive Data Persistence:** JSON export/import functionality with keyboard shortcuts (Ctrl+S/Ctrl+O) and file drag & drop support.
+- **Enhanced Flow Assistant:** Real-time chat stream interface replacing static cards with typing animations and highlight-to-add functionality.
+- **Professional Polish:** Theming and controls are visually consistent and compact with modern design language.
+- **Advanced Error Handling:** Graceful fallbacks and retry mechanisms for local AI failures with model switching capabilities. 

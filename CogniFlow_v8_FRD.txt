@@ -2,9 +2,9 @@
                     COGNIFLOW v8 - FUNCTIONAL REQUIREMENTS DOCUMENT
 ================================================================================
 
-Document Version: 2.0
+Document Version: 4.0
 Date: December 2024
-Product Version: v8.2 (Production Ready)
+Product Version: v8.3 (Production Ready with Local AI Integration)
 
 ================================================================================
 TABLE OF CONTENTS
@@ -19,7 +19,7 @@ TABLE OF CONTENTS
 7. INTERACTION MODELS
 8. VISUAL DESIGN SYSTEM
 9. AI INTEGRATION (FLOW ASSISTANT)
-10. RATE LIMITING & API MANAGEMENT
+10. LOCAL AI SYSTEM & API MANAGEMENT
 11. DATA STRUCTURES
 12. STATE MANAGEMENT
 13. KEYBOARD SHORTCUTS & NAVIGATION
@@ -27,20 +27,27 @@ TABLE OF CONTENTS
 15. ANIMATION & TRANSITIONS
 16. PERFORMANCE SPECIFICATIONS
 17. ERROR HANDLING & RECOVERY
+18. ENHANCED PHYSICS & COLLISION SYSTEM
+19. PERSISTENCE & DATA MANAGEMENT
 
 ================================================================================
 1. EXECUTIVE SUMMARY
 ================================================================================
 
-CogniFlow v8.2 is a production-ready, AI-powered mind mapping application that 
+CogniFlow v8.3 is a production-ready, AI-powered mind mapping application that 
 represents the state-of-the-art in intelligent idea synthesis tools. Built with 
-D3.js and integrated with Gemini 1.5 Flash API, it provides comprehensive AI 
-assistance through the Flow Assistant system, featuring structured insights, 
-real-time analysis, and contextual suggestions.
+D3.js and integrated with local AI systems (LM Studio + Gemma models), it provides 
+comprehensive AI assistance through the Flow Assistant system, featuring structured 
+insights, real-time analysis, and contextual suggestions without external API dependencies.
 
 Key Production Features:
-- 🌊 Flow Assistant with structured AI insights (definitions, questions, overviews)
-- Rate-limited API system with priority queues to prevent overuse
+- 🌊 Flow Assistant with structured AI insights using local Gemma models
+- Local AI system via LM Studio with Gemma 7B Instruct model
+- Advanced collision prevention with bounding box detection and post-tick overlap resolver
+- Dynamic link distances that automatically adjust for expanded/list/media nodes
+- Modern iOS-like UI with persistent AI settings and model selection
+- Comprehensive save/load functionality with JSON export/import
+- Rate-limited local API system with priority queues for optimal performance
 - Multiple node types with no text truncation and wider content areas
 - Advanced interaction models with spatial navigation
 - Professional theming system with 8 curated themes
@@ -54,25 +61,26 @@ Key Production Features:
 
 2.1 Core Technology Stack
 - D3.js v7 for visualization and force simulation
-- Gemini 1.5 Flash API for AI intelligence
+- Local AI system: LM Studio with Gemma 7B Instruct model
 - Vanilla JavaScript ES6+ for application logic
 - HTML5 Canvas/SVG hybrid rendering
 - CSS3 with CSS Variables for dynamic theming
-- Professional-grade API management system
+- Local API management system with intelligent queuing
+- Local storage for persistent settings and data
 
 2.2 Browser Requirements
 - Modern browsers with ES6+ support
 - Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
 - SVG and CSS3 support required
 - JavaScript enabled
-- Network connectivity for AI features
+- Local LM Studio server for AI features
 
 2.3 Architecture Pattern
 - Single Page Application (SPA)
-- Event-driven architecture with rate limiting
+- Event-driven architecture with local rate limiting
 - Component-based UI updates
 - Reactive data flow with D3.js data binding
-- Priority-based API queue system
+- Priority-based local API queue system
 
 ================================================================================
 3. TECHNICAL ARCHITECTURE
@@ -80,29 +88,41 @@ Key Production Features:
 
 3.1 Core Components
 - SVG Canvas: Main visualization area with viewport optimization
-- Force Simulation Engine: Custom D3.js force-directed layout
-- Node Renderer: Multi-type node rendering system
-- Link System: Curved connector management with repulsion forces
+- Enhanced Force Simulation Engine: Custom D3.js force-directed layout with collision prevention
+- Advanced Node Renderer: Multi-type node rendering system with bounding box support
+- Dynamic Link System: Curved connector management with adaptive distances
 - Event System: Comprehensive user interaction handling
-- State Manager: Application state coordination
+- State Manager: Application state coordination with persistence
 - Theme Engine: Dynamic color management with 8 themes
-- 🌊 Flow Assistant: AI integration layer with structured responses
-- Rate Limiter: API queue management with priority handling
+- 🌊 Flow Assistant: Local AI integration layer with structured responses
+- Local AI System: LM Studio with Gemma 7B Instruct model
+- Enhanced Rate Limiter: Local API queue management with priority handling
+- Collision Prevention System: Bounding box detection and post-tick overlap resolver
 
-3.2 AI System Architecture
-- Priority Queue System: High/Medium/Low priority requests
-- Rate Limiting: 2-second minimum intervals with exponential backoff
+3.2 Local AI System Architecture
+- LM Studio Integration: Local server running Gemma 7B Instruct model
+- Priority Queue System: High/Medium/Low priority requests with intelligent processing
+- Rate Limiting: Model-specific intervals with exponential backoff
 - Structured Parsing: JSON response processing for insights
 - Context Building: Full map analysis for AI prompts
 - Error Recovery: Graceful fallbacks and retry mechanisms
+- Persistent Settings: User-configurable model preferences
 
-3.3 Rendering Pipeline
+3.3 Advanced Physics Engine
+- Bounding Box Collision Detection: Prevents overlap for all node types
+- Post-Tick Overlap Resolver: Ensures no overlaps after simulation ticks
+- Dynamic Link Distances: Automatic spacing for expanded/list/media nodes
+- Enhanced Force Functions: Custom algorithms for stable layouts
+- Adaptive Force Strengths: Generation-specific collision handling
+
+3.4 Rendering Pipeline
 1. Data Update → Force Simulation
 2. Simulation Tick → Position Calculation
-3. Position Update → DOM Manipulation
-4. Visual Update → User Feedback
-5. AI Context → Flow Assistant Analysis
-6. Insights Display → User Interaction
+3. Post-Tick Overlap Resolution → Collision Prevention
+4. Position Update → DOM Manipulation
+5. Visual Update → User Feedback
+6. AI Context → Flow Assistant Analysis
+7. Insights Display → User Interaction
 
 ================================================================================
 4. USER INTERFACE DESIGN
@@ -110,6 +130,9 @@ Key Production Features:
 
 4.1 Enhanced Layout Structure
 ┌─────────────────────────────────────────┐
+│  Modern iOS-like Top Bar                │
+│  [Model Status] [Settings] [Save/Load]  │
+├─────────────────────────────────────────┤
 │  Theme Selector (Top Right)             │
 ├─────────────────────────────────────────┤
 │                                         │
@@ -117,39 +140,54 @@ Key Production Features:
 │       (with Loading Indicators)         │
 │                                         │
 ├─────────────────────────────────────────┤
-│  🌊 Flow Assistant Insights Panel       │
-│  (Expandable cards with categories)     │
+│  🌊 Flow Assistant Chat Stream          │
+│  (Real-time AI interactions)            │
 ├─────────────────────────────────────────┤
 │  Contextual Instructions (Dynamic)      │
 ├─────────────────────────────────────────┤
 │  [Input] [Summarize] [Elaborate]        │
 └─────────────────────────────────────────┘
 
-4.2 Flow Assistant Panel Design
-- Expandable insight cards with click-to-expand functionality
-- Color-coded categories for different insight types
-- Smooth animations and professional styling
-- Queue status indicators for AI processing
-- Clickable keyword suggestions with confirmation dialogs
+4.2 Modern Top Bar Design
+- Model Status Display: Shows current AI model (FLASH, GEMMA, etc.)
+- Settings Integration: Persistent AI configuration
+- Save/Load Buttons: Quick access to data persistence
+- Usage Indicators: Real-time API usage tracking
+- Background AI Toggle: Control automatic AI updates
 
-4.3 Enhanced Visual Hierarchy
+4.3 Flow Assistant Chat Stream
+- Real-time conversation interface replacing static cards
+- Typing animations with character-by-character display
+- Message threading with user/assistant distinction
+- Highlight-to-add functionality for text selection
+- Contextual action buttons for quick node creation
+
+4.4 Enhanced Visual Hierarchy
 - No text truncation anywhere in the application
 - Wider minimum text areas for better readability
 - Professional loading states with queue awareness
 - Contextual error messages with retry options
+- Modern iOS-inspired design language
 
 ================================================================================
 5. CORE FEATURES
 ================================================================================
 
-5.1 Mind Mapping Engine (Enhanced)
-- Advanced force-directed graph layout
+5.1 Enhanced Mind Mapping Engine
+- Advanced force-directed graph layout with collision prevention
 - Custom force functions for link repulsion and text separation
-- Viewport boundary constraints
-- Automatic camera panning and intelligent centering
+- Viewport boundary constraints with intelligent centering
+- Automatic camera panning with user interaction awareness
 - 4-second position stabilization for non-first-generation nodes
+- Post-tick overlap resolver for perfect collision prevention
 
-5.2 Enhanced Node Creation System
+5.2 Local AI System
+- LM Studio Integration: Local Gemma 7B Instruct model for fast, unlimited processing
+- Intelligent Model Selection: Automatic fallback based on usage and priority
+- Persistent Settings: User-configurable model preferences
+- Usage Tracking: Daily limits and usage indicators per model
+
+5.3 Enhanced Node Creation System
 Two-Mode System with Flow Assistant Integration:
 - PRIMED MODE: Activated after clicking node or creating central idea
   * Enter key creates child node
@@ -161,7 +199,7 @@ Two-Mode System with Flow Assistant Integration:
   * Shift+Enter creates child node
   * Mode persists with contextual AI suggestions
 
-5.3 Progressive Node Sizing (Updated)
+5.4 Progressive Node Sizing (Updated)
 Generation-based radius with enhanced readability:
 - Central Node: 22px (reduced by 5px for better proportion)
 - 1st Generation: 18px 
@@ -170,7 +208,7 @@ Generation-based radius with enhanced readability:
 - 4th Generation: 9px
 - 5th+ Generation: 8px (minimum for readability)
 
-5.4 Text Display Enhancement
+5.5 Text Display Enhancement
 - NO TEXT TRUNCATION: All text displays fully with intelligent wrapping
 - WIDER CONTENT AREAS: Increased minimum widths across all node types
   * Central nodes: 90→120px
@@ -178,6 +216,13 @@ Generation-based radius with enhanced readability:
   * 3rd generation: 50→70px
   * 4th generation+: 40→60px
 - Enhanced text wrapping with 4-6 lines maximum (up from 2-3)
+
+5.6 Comprehensive Data Persistence
+- JSON Export/Import: Complete mind map serialization
+- Local Storage: Persistent settings and preferences
+- Auto-Save: Automatic state preservation
+- Keyboard Shortcuts: Ctrl+S for save, Ctrl+O for load
+- File Drag & Drop: Direct JSON file loading
 
 ================================================================================
 6. NODE SYSTEM (COMPREHENSIVE)
@@ -250,6 +295,10 @@ Advanced Input:
 - ESC: Cancel operations and exit modes
 - TAB: Navigate between UI elements
 
+Data Persistence:
+- CTRL+S/CMD+S: Save mind map to JSON file
+- CTRL+O/CMD+O: Load mind map from JSON file
+
 List Entry Mode:
 - ENTER: Add new list item
 - SHIFT+ENTER: Exit list mode and create child node
@@ -269,6 +318,7 @@ List Entry Mode:
 - Visual drop indicators with hover states
 - Automatic media node transformation
 - Error handling for unsupported formats
+- JSON file loading via drag & drop
 
 ================================================================================
 8. VISUAL DESIGN SYSTEM (PROFESSIONAL)
@@ -304,66 +354,82 @@ Eight professionally designed themes:
 ================================================================================
 
 9.1 🌊 Flow Assistant Architecture
-Advanced AI analysis system providing structured insights:
+Advanced AI analysis system providing structured insights using local Gemma models:
 
-9.1.1 Analysis Section
+9.1.1 Local AI System
+- LM Studio Integration: Local server running Gemma 7B Instruct model
+- Unlimited Processing: No rate limits or API costs
+- Fast Response Times: Local processing for immediate feedback
+- Intelligent Queue Management: Priority-based request handling
+- Persistent Settings: User-configurable model preferences
+
+9.1.2 Analysis Section
 - 📚 Term Definitions: Comprehensive explanations of concepts
 - ✏️ Keyword Suggestions: Clickable refinements for node text
 - 🤔 Probing Questions: Deep Socratic inquiry for exploration
 
-9.1.2 Overview Section  
+9.1.3 Overview Section  
 - 🔍 Search Summaries: AI-powered contextual overviews
 - Background information and related concepts
 - Multiple perspective cards for comprehensive understanding
 
-9.1.3 Map Insights Section
+9.1.4 Map Insights Section
 - 🔗 Connection Discovery: Links between disparate map areas
 - 💡 Gap Analysis: Identification of underdeveloped topics
 - 🏗️ Structural Suggestions: Map organization improvements
 
-9.2 Structured Response System
+9.2 Enhanced Chat Stream Interface
+- Real-time conversation replacing static insight cards
+- Typing animations with character-by-character display
+- Message threading with user/assistant distinction
+- Highlight-to-add functionality for text selection
+- Contextual action buttons for quick node creation
+
+9.3 Structured Response System
 - JSON-based response parsing for consistent formatting
 - Color-coded insight categories for visual organization
 - Expandable cards with preview and full content modes
 - Click-to-apply functionality for keyword suggestions
 - Error handling with graceful fallbacks
 
-9.3 Context-Aware Intelligence
+9.4 Context-Aware Intelligence
 - Full map structure analysis for AI prompts
 - Parent-child relationship awareness
 - Sibling context consideration
 - Map goal identification from central node and branches
 - Real-time adaptation to map changes
 
-9.4 AI Action Integration (Expanded Nodes)
+9.5 AI Action Integration (Expanded Nodes)
 - Define: High-priority API calls for immediate definitions
 - Expand On: Detailed elaboration with context awareness
 - Solutions: Problem-solving suggestions with practical focus
 - Results automatically integrated into notes area
 
 ================================================================================
-10. RATE LIMITING & API MANAGEMENT
+10. LOCAL AI SYSTEM & API MANAGEMENT
 ================================================================================
 
-10.1 Priority Queue System
-Three-tier priority handling:
+10.1 Local AI Priority Queue System
+Three-tier priority handling with intelligent processing:
 - HIGH PRIORITY: Manual user actions (Summarize, Elaborate, Define buttons)
 - MEDIUM PRIORITY: Flow Assistant analysis, suggestion follow-ups
 - LOW PRIORITY: Background suggestions, ghost node generation
 
-10.2 Rate Limiting Implementation
-- Minimum 2-second intervals between API calls
-- Exponential backoff for 429 (rate limit) errors
-- 5-second retry delays with queue repositioning
+10.2 Enhanced Local Rate Limiting Implementation
+- Model-specific intervals: 50-500ms based on local model capabilities
+- Exponential backoff for connection errors
+- 10-second retry delays with queue repositioning
 - Smart queue processing with status monitoring
+- Daily usage tracking per model
 
 10.3 User Experience Optimization
 - Queue-aware loading indicators
 - High-priority requests jump to front of queue
 - Non-blocking background processing
 - Professional error messaging with retry options
+- Model status display in UI
 
-10.4 API Usage Intelligence
+10.4 Local AI Usage Intelligence
 - Auto-trigger frequency: Reduced to 30% chance for Flow Assistant
 - Contextual suggestions: 40% chance with 4-second delays
 - Periodic refresh: Every 15 minutes (down from 5 minutes)
@@ -416,14 +482,27 @@ Three-tier priority handling:
     cp_dy_factor: number (curve randomization)
 }
 
-11.3 API Queue Object Structure
+11.3 Local API Queue Object Structure
 {
     prompt: string,
     maxChars: number,
     priority: string (high|medium|low),
+    requestType: string (standard|ghost|analysis),
     resolve: function,
     reject: function,
     timestamp: number
+}
+
+11.4 Local Model Configuration Structure
+{
+    name: string,
+    url: string,
+    model: string,
+    maxTokens: number,
+    rateLimitDelay: number,
+    dailyLimit: number,
+    priority: number,
+    isLocal: boolean
 }
 
 ================================================================================
@@ -439,11 +518,13 @@ Three-tier priority handling:
 - isDragging: Drag operation status with impact tracking
 - dropTargetNode: Current drop target with visual feedback
 
-12.2 AI System State
+12.2 Local AI System State
 - apiCallQueue: Priority-ordered request queue
 - isProcessingQueue: Queue processing status
-- lastApiCall: Timestamp for rate limiting
+- lastApiCall: Timestamp for rate limiting (per model)
 - lastFlowAssistantUpdate: Timestamp for auto-trigger throttling
+- modelUsage: Daily usage tracking per model
+- currentModel: Active model selection
 
 12.3 Enhanced UI State
 - Theme selection with smooth transitions
@@ -451,6 +532,13 @@ Three-tier priority handling:
 - Button visibility with loading states
 - Panel dimensions with resize handling
 - Queue status indicators
+- Model status display
+
+12.4 Persistence State
+- Saved mind maps with JSON serialization
+- User preferences and settings
+- Model configurations and usage history
+- Theme selections and UI state
 
 ================================================================================
 13. KEYBOARD SHORTCUTS & NAVIGATION (COMPREHENSIVE)
@@ -473,13 +561,18 @@ Three-tier priority handling:
   * List transformations
   * Media transformations
 
-13.3 List Mode Shortcuts
+13.3 Data Persistence Shortcuts
+- CTRL+S/CMD+S: Save mind map to JSON file
+- CTRL+O/CMD+O: Load mind map from JSON file
+- File drag & drop: Direct JSON file loading
+
+13.4 List Mode Shortcuts
 - ENTER: Add new list item with smooth animation
 - SHIFT+ENTER: Exit list mode and create child node
 - BACKSPACE (empty input): Highlight last item for deletion
 - BACKSPACE (second press): Delete highlighted item
 
-13.4 Expanded View Shortcuts
+13.5 Expanded View Shortcuts
 - DOUBLE-CLICK: Open/close expanded view with camera centering
 - ENTER (in title): Save and exit title editing
 - Click outside: Close expanded view
@@ -496,6 +589,7 @@ Three-tier priority handling:
 - Repository URLs → GitHub nodes with metadata
 - Document files → Document nodes with type detection
 - Generic URLs → Link nodes with favicon and metadata
+- JSON files → Direct mind map loading
 
 14.2 Intelligent Drop Behavior
 - Visual drop zone indicators during drag
@@ -524,7 +618,7 @@ Three-tier priority handling:
 
 15.2 Advanced Force Simulation
 - Initial alpha: 1.0 for immediate responsiveness
-- Minimum alpha: 0.001 for enhanced precision
+- Minimum alpha: 0.002 for enhanced precision
 - Drag alpha boost: 0.02 for smooth interactions
 - Gentle nudge: 0.0275 for subtle repositioning
 - Custom force functions for professional feel
@@ -534,7 +628,7 @@ Three-tier priority handling:
 - Panel resize: Hardware-accelerated CSS transitions
 - Button interactions: 200ms hover/focus effects
 - Loading states: Smooth opacity and transform changes
-- Insight cards: Expand/collapse with easing functions
+- Chat stream: Typing animations with character-by-character display
 
 ================================================================================
 16. PERFORMANCE SPECIFICATIONS (OPTIMIZED)
@@ -554,23 +648,23 @@ Three-tier priority handling:
 - Efficient DOM node recycling
 - Smart garbage collection assistance
 
-16.3 Network Performance (AI-Optimized)
-- Rate-limited AI calls with intelligent queuing
+16.3 Local AI Performance (Optimized)
+- Local model rate limiting with intelligent queuing
 - Priority-based request handling
 - Exponential backoff for error recovery
-- Minimal external dependencies
+- Local model fallback for immediate responses
 - Compressed response parsing
 
 ================================================================================
 17. ERROR HANDLING & RECOVERY
 ================================================================================
 
-17.1 AI System Error Handling
-- 429 Rate Limit Errors: Automatic retry with exponential backoff
-- Network Failures: Graceful fallbacks with user notification
+17.1 Local AI System Error Handling
+- Connection Errors: Graceful fallbacks with user notification
 - Invalid Responses: JSON parsing error recovery
-- API Key Issues: Clear error messaging with guidance
+- Server Issues: Clear error messaging with guidance
 - Timeout Handling: Request cancellation and retry logic
+- Model Fallback: Automatic switching to available models
 
 17.2 User Interface Error Recovery
 - Malformed Input: Smart validation and correction
@@ -585,50 +679,67 @@ Three-tier priority handling:
 - Memory Leak Prevention: Proper event listener cleanup
 
 ================================================================================
+18. ENHANCED PHYSICS & COLLISION SYSTEM
+================================================================================
+
+18.1 Advanced Collision Prevention
+- Bounding Box Detection: All node types use rectangular collision detection
+- Post-Tick Overlap Resolver: Ensures no overlaps after each simulation tick
+- Dynamic Collision Radii: Generation-specific collision handling
+- Enhanced Force Functions: Custom algorithms for stable layouts
+
+18.2 Dynamic Link Distance System
+- Automatic Spacing: Large/expanded nodes automatically space out
+- Balanced Layout: Pleasant, evenly distributed node arrangements
+- Force Strength Tuning: Optimized for more even, stable layouts
+- Visual Consistency: All node types respected in force calculations
+
+18.3 Enhanced Force Simulation
+- Custom Force Functions: Link repulsion and text separation
+- Adaptive Force Strengths: Generation-specific collision handling
+- Viewport Boundary Constraints: Keep nodes within visible area
+- Intelligent Camera Control: Auto-centering with user interaction awareness
+
+18.4 Collision Resolution Algorithm
+- Pre-Simulation: Bounding box collision detection
+- During Simulation: Force-based separation with custom algorithms
+- Post-Simulation: Overlap resolver for perfect collision prevention
+- Continuous Monitoring: Real-time collision detection and resolution
+
+================================================================================
+19. PERSISTENCE & DATA MANAGEMENT
+================================================================================
+
+19.1 Comprehensive Save/Load System
+- JSON Export/Import: Complete mind map serialization
+- Local Storage: Persistent settings and preferences
+- Auto-Save: Automatic state preservation
+- File Drag & Drop: Direct JSON file loading
+- Keyboard Shortcuts: Ctrl+S for save, Ctrl+O for load
+
+19.2 Enhanced Data Structures
+- Complete Node Serialization: All node types and properties
+- Link Preservation: Connection data with distance information
+- Theme Persistence: User theme selections
+- Settings Storage: Model preferences and configurations
+
+19.3 Data Integrity Features
+- Validation: JSON structure validation on load
+- Error Recovery: Graceful handling of corrupted data
+- Version Compatibility: Backward compatibility with older formats
+- Backup System: Automatic backup creation
+
+================================================================================
 END OF DOCUMENT
 ================================================================================
 
 Version History:
-v8.2 - Current Production Release
-- 🌊 Flow Assistant with structured JSON insights
-- Comprehensive rate limiting with priority queues
-- Removed all text truncation, widened content areas
-- Enhanced AI integration with clickable suggestions
-- Professional error handling and recovery systems
-- Advanced keyboard navigation with spatial movement
-- Comprehensive drag & drop with intelligent type detection
-- Production-ready performance optimizations
-
-v8.1 - Enhanced AI Integration
-- Flow Assistant implementation
-- Basic rate limiting
-- Enhanced node types
-
-v8.0 - Core Release
-- Multi-node system
-- Basic theming
-- Force-directed layout
-- Standard interactions
-
-For technical implementation details and current API integration,
-refer to the source code in index.html.
-
-================================================================================
-PRODUCTION STATUS: READY
-================================================================================
-
-CogniFlow v8.2 represents a production-ready, AI-powered mind mapping solution
-with comprehensive features, professional performance, and advanced user
-experience design. All core features are fully implemented and tested. 
-
-================================================================================
-2025 UPDATE SUMMARY
-================================================================================
-- Node overlap is now fully prevented: expanded, list, and media nodes use bounding box collision, not just circle radius.
-- Link distances are dynamic: large/expanded nodes automatically space out for a balanced, pleasant layout.
-- A post-tick overlap resolver ensures no node overlaps after each simulation tick.
-- Force strengths and decay have been tuned for more even, stable layouts.
-- All node types (standard, expanded, list, media) are visually consistent and their sizes are respected in force calculations.
-- The UI now features a modern, iOS-like top bar with an LLM settings modal for endpoint/model/temperature/rate limit, and persistent settings.
-- LLM settings can be changed live from the UI and are saved to localStorage.
-- Theming and controls are visually consistent and compact. 
+v8.3 - Current Production Release (December 2024)
+- Local AI integration with LM Studio and Gemma 7B Instruct model
+- Enhanced collision prevention with bounding box detection and post-tick overlap resolver
+- Dynamic link distances that automatically adjust for expanded/list/media nodes
+- Modern iOS-like UI with persistent AI settings and model selection
+- Comprehensive save/load functionality with JSON export/import
+- Improved force simulation with tuned strengths and decay
+- All node types visually consistent with sizes respected in force calculations
+- Professional error handling and recovery systems 
